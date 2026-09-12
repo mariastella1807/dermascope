@@ -33,15 +33,24 @@ del challenge.
 
 ### Opción A — Kaggle (recomendada)
 
-Requiere el token de la API en `%USERPROFILE%\.kaggle\kaggle.json`
-(Kaggle → Settings → API → Create New Token).
+El CLI de Kaggle (2.2.x) ya viene instalado en el `.venv`. La autenticación tiene dos
+caminos; el primero es el más simple porque no hay token que administrar:
 
 ```powershell
-pip install kaggle
-kaggle datasets download -d kmader/skin-cancer-mnist-ham10000 -p data/raw --unzip
+.\.venv\Scripts\kaggle.exe auth login          # flujo OAuth en el navegador
 ```
 
-Las máscaras del Task 1 no están en ese dataset. Descargarlas del portal oficial del
+Si se prefiere token manual: Kaggle → Settings → API → *Generate New Token*, y guardarlo
+en `%USERPROFILE%\.kaggle\access_token` o exportarlo como `KAGGLE_API_TOKEN`.
+
+Descarga (la ruta de destino sale de `configs/paths.local.yaml`):
+
+```powershell
+.\.venv\Scripts\kaggle.exe datasets download -d kmader/skin-cancer-mnist-ham10000 `
+    -p C:\ml-data\dermascope\raw --unzip
+```
+
+Las máscaras del Task 1 **no** están en ese dataset. Descargarlas del portal oficial del
 challenge (opción B) o de un espejo verificable en Kaggle, y anotar en el informe cuál
 se usó.
 
@@ -54,11 +63,15 @@ se usó.
 
 ## Estructura esperada
 
-`src/data/build_splits.py` busca exactamente estas rutas (configurables en
-`configs/paths.yaml`):
+`src/data/build_splits.py` busca estas rutas. En este equipo el dataset vive **fuera de
+OneDrive**, en `C:\ml-data\dermascope`, definido en `configs/paths.local.yaml` (archivo
+no versionado). La razón: son ~3 GB de JPEG que OneDrive sincronizaría, y además puede
+bloquear archivos justo mientras el DataLoader los lee. Cada integrante crea su propio
+`paths.local.yaml`; si no existe, se usan las rutas relativas `data/raw` de
+`configs/paths.yaml`.
 
 ```
-data/raw/
+C:\ml-data\dermascope\raw\
 ├── HAM10000_metadata.csv              # image_id, lesion_id, dx, dx_type, age, sex, localization
 ├── HAM10000_images/                   # ISIC_0024306.jpg, ...
 │   ├── HAM10000_images_part_1/        # también acepta las dos subcarpetas originales

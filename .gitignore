@@ -4,6 +4,10 @@ __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
 
+# Configuracion local de cada integrante: rutas propias de datos y checkpoints.
+# Se ignoran a proposito para que nadie sobrescriba las rutas de otro.
+configs/*.local.yaml
+
 # Datos: nunca versionar el dataset (licencia CC BY-NC y volumen)
 data/raw/*
 data/interim/*
