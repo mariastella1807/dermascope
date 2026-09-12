@@ -1,0 +1,44 @@
+# Tarea 2 (§4.2): segmentacion binaria de la lesion.
+# El modelo principal es SegFormer-B0, que aporta el requisito de self-attention (§4.3).
+# El baseline U-Net existe para poder responder "que aporta el self-attention".
+
+paths_config: configs/paths.yaml
+
+model:
+  arch: segformer             # segformer | unet
+  segformer_checkpoint: nvidia/mit-b0
+  unet_encoder: resnet34      # solo para arch: unet
+  num_classes: 1              # mascara binaria lesion / fondo
+
+data:
+  image_size: 512             # SegFormer predice a 1/4 de resolucion; se reescala al final
+  batch_size: 8
+  num_workers: 4
+
+train:
+  epochs: 40
+  optimizer: adamw
+  lr: 6.0e-5                  # los transformers de vision toleran mal lr altos en fine-tuning
+  weight_decay: 0.01
+  scheduler: poly
+  poly_power: 1.0
+  loss: bce_dice              # BCE sola sesga hacia el fondo, que domina el area
+  dice_weight: 0.5
+  amp: true
+  early_stopping_patience: 8
+  monitor: val_dice
+
+augment:
+  hflip: 0.5
+  vflip: 0.5
+  rotate90: 0.5
+  scale_limit: 0.2
+  shift_limit: 0.1
+  brightness_contrast: 0.3
+
+postprocess:
+  # §4.2 — de la mascara al objeto aislado
+  threshold: 0.5
+  keep_largest_component: true   # la lesion es unica por imagen; descarta ruido satelite
+  morph_close_kernel: 5
+  min_area_ratio: 0.001          # por debajo de esto se considera "sin deteccion"

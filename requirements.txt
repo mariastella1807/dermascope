@@ -1,0 +1,29 @@
+# Entorno: Python 3.11 o 3.12 (PyTorch aun no publica ruedas estables para 3.14).
+# En Windows sin GPU, pip instala la rueda de CPU por defecto. En Colab/Kaggle torch ya viene.
+
+torch>=2.2
+torchvision>=0.17
+
+# Segmentacion
+transformers>=4.40          # SegformerForSemanticSegmentation (nvidia/mit-b0)
+segmentation-models-pytorch>=0.3.3   # baseline U-Net convolucional
+
+# Datos y aumentacion
+numpy>=1.26
+pandas>=2.1
+pillow>=10.2
+opencv-python-headless>=4.9
+albumentations>=1.4
+
+# Metricas y utilidades
+scikit-learn>=1.4
+pyyaml>=6.0
+tqdm>=4.66
+matplotlib>=3.8
+
+# Optimizacion (§4.4)
+onnx>=1.16
+onnxruntime>=1.17
+
+# Despliegue (§4.6)
+streamlit>=1.33

@@ -1,0 +1,40 @@
+# Rutas y definicion del split. Unica fuente de verdad para la ubicacion de los datos.
+
+seed: 42
+
+paths:
+  # Descomprimir aqui segun scripts/download_data.md
+  ham_metadata: data/raw/HAM10000_metadata.csv
+  ham_images: data/raw/HAM10000_images          # ISIC_xxxxxxx.jpg
+  seg_masks: data/raw/ISIC2018_Task1_masks      # ISIC_xxxxxxx_segmentation.png
+
+  processed: data/processed
+  models: models
+  reports: reports
+
+split:
+  # Proporciones sobre lesion_id, no sobre imagen: HAM10000 repite la misma lesion
+  # fisica en varias fotos y un split por imagen filtra informacion al test.
+  group_by: lesion_id
+  stratify_by: dx
+  train: 0.70
+  val: 0.15
+  test: 0.15
+
+classes:
+  - akiec
+  - bcc
+  - bkl
+  - df
+  - mel
+  - nv
+  - vasc
+
+class_names_es:
+  akiec: Queratosis actinica / carcinoma intraepitelial
+  bcc: Carcinoma basocelular
+  bkl: Lesion benigna tipo queratosis
+  df: Dermatofibroma
+  mel: Melanoma
+  nv: Nevus melanocitico
+  vasc: Lesion vascular

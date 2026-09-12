@@ -1,0 +1,53 @@
+# Tarea 1 (§4.1): clasificacion de 7 clases con fine-tuning + CBAM (§4.3).
+# La ablacion se corre con el mismo archivo y el flag --no-cbam, para que el unico
+# factor que cambia entre las dos corridas sea el bloque de atencion.
+
+paths_config: configs/paths.yaml
+
+model:
+  backbone: resnet34          # resnet34 | resnet50
+  pretrained: true
+  num_classes: 7
+  use_cbam: true
+  cbam_stages: [layer3, layer4]
+  cbam_reduction: 16
+  cbam_spatial_kernel: 7
+  dropout: 0.2
+
+data:
+  image_size: 224
+  batch_size: 32
+  num_workers: 4
+
+train:
+  epochs: 25
+  optimizer: adamw
+  lr: 3.0e-4
+  head_lr_multiplier: 10.0    # cabeza nueva aprende mas rapido que el backbone preentrenado
+  weight_decay: 1.0e-4
+  scheduler: cosine
+  warmup_epochs: 2
+  # Desbalance nv:df ~ 58:1. Pesos inversos a la frecuencia, calculados en runtime.
+  class_weights: balanced
+  label_smoothing: 0.05
+  amp: true
+  early_stopping_patience: 6
+  monitor: val_macro_f1       # no val_accuracy: el desbalance la hace enganosa
+
+augment:
+  hflip: 0.5
+  vflip: 0.5
+  rotate90: 0.5
+  brightness_contrast: 0.3
+  # Las imagenes dermatoscopicas no tienen orientacion canonica, asi que las
+  # simetrias completas son validas. El color se toca con cuidado: el tono es
+  # senal diagnostica real.
+  hue_shift_limit: 8
+  saturation_shift_limit: 12
+
+optimize:
+  # §4.4 — cuantizacion estatica INT8 con ONNX Runtime
+  onnx_opset: 17
+  calibration_samples: 200
+  fallback: prune             # si INT8 degrada macro-F1 mas de lo aceptable
+  max_f1_drop: 0.02

@@ -1,0 +1,26 @@
+# Entorno
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Datos: nunca versionar el dataset (licencia CC BY-NC y volumen)
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+
+# Checkpoints y modelos exportados
+models/*
+!models/.gitkeep
+*.pt
+*.pth
+*.onnx
+
+# Salidas de reportes: se versionan las tablas, no las figuras pesadas
+reports/figures/*
+!reports/figures/.gitkeep
+
+# Sistema
+.DS_Store
+Thumbs.db
