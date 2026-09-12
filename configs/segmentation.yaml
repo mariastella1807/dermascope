@@ -16,7 +16,11 @@ data:
   num_workers: 4
 
 train:
-  epochs: 40
+  # 25 y no 40: las mascaras de Tschandl cubren las ~10.015 imagenes, asi que cada
+  # epoca ve casi 4x mas datos que con el subconjunto de 2.594 del ISIC Task 1. Con
+  # ~7.000 imagenes de entrenamiento a 512px, 40 epocas arriesgan agotar la sesion
+  # de Colab sin aportar nada que el early stopping no corte antes.
+  epochs: 25
   optimizer: adamw
   lr: 6.0e-5                  # los transformers de vision toleran mal lr altos en fine-tuning
   weight_decay: 0.01

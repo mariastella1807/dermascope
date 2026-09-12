@@ -69,7 +69,15 @@ def build(config_path: str) -> pd.DataFrame:
             f"No se encontro {metadata_path}. Ver scripts/download_data.md."
         )
 
-    meta = pd.read_csv(metadata_path)
+    # Harvard Dataverse distribuye el metadata como .tab separado por tabulaciones;
+    # los espejos de Kaggle lo publican como .csv. Se detecta por la extension para
+    # que cualquiera de las dos fuentes funcione sin editar la configuracion.
+    separator = "\t" if metadata_path.suffix.lower() in (".tab", ".tsv") else ","
+    meta = pd.read_csv(metadata_path, sep=separator)
+    meta.columns = [c.strip().strip('"') for c in meta.columns]
+    for column in ("lesion_id", "image_id", "dx"):
+        meta[column] = meta[column].astype(str).str.strip().str.strip('"')
+
     classes = list(cfg.classes)
     dx_to_idx = {dx: i for i, dx in enumerate(classes)}
 

@@ -17,13 +17,18 @@ diagnóstico**. Ver `MODEL_CARD.md` para alcances, limitaciones y consideracione
 
 ## Dataset
 
-Dos anotaciones oficiales sobre el mismo pool de imágenes del archivo ISIC, cruzables por
-el identificador `ISIC_xxxxxxx`:
+Una sola fuente: **Harvard Dataverse, DOI `10.7910/DVN/DBW86T`** (descarga anónima, sin
+cuenta). Ambas anotaciones cubren el mismo conjunto de imágenes y se cruzan por el
+identificador `ISIC_xxxxxxx`:
 
-| Anotación | Fuente | Volumen |
+| Anotación | Archivo | Volumen |
 | --- | --- | --- |
-| Clasificación, 7 clases | HAM10000 (= ISIC 2018 Task 3) | 10.015 imágenes |
-| Máscaras binarias de lesión | ISIC 2018 Task 1 | 2.594 imágenes |
+| Clasificación, 7 clases | `HAM10000_metadata.tab` | 10.015 imágenes |
+| Máscaras binarias de lesión | `HAM10000_segmentations_lesion_tschandl.zip` | 10.015 máscaras |
+
+Las máscaras de Tschandl cubren el dataset completo, no solo las 2.594 del ISIC 2018
+Task 1 que se contemplaban inicialmente. Fueron generadas de forma semiautomática y
+revisadas manualmente, lo que conviene declarar en el informe: acotan el Dice alcanzable.
 
 Clases: `akiec` (queratosis actínica / carcinoma intraepitelial), `bcc` (carcinoma
 basocelular), `bkl` (lesiones benignas tipo queratosis), `df` (dermatofibroma),

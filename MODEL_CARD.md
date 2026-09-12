@@ -22,10 +22,18 @@ tiene aprobación regulatoria de ningún tipo.
 
 ## 2. Dataset
 
-| Componente | Fuente | Volumen | Licencia |
-| --- | --- | --- | --- |
-| Imágenes + clases | HAM10000 (ISIC 2018 Task 3) | 10.015 imágenes, 7.470 lesiones | CC BY-NC 4.0 |
-| Máscaras | ISIC 2018 Task 1 | 2.594 máscaras binarias | CC BY-NC 4.0 |
+Fuente única: Harvard Dataverse, DOI `10.7910/DVN/DBW86T` (ViDIR Group, Universidad
+Médica de Viena), licencia CC BY-NC 4.0.
+
+| Componente | Archivo | Volumen |
+| --- | --- | --- |
+| Imágenes + clases | `HAM10000_metadata.tab` + `HAM10000_images_part_{1,2}.zip` | 10.015 imágenes, ~7.470 lesiones |
+| Máscaras | `HAM10000_segmentations_lesion_tschandl.zip` | 10.015 máscaras binarias |
+
+**Origen de las máscaras.** Generadas de forma semiautomática y revisadas manualmente
+por el grupo de Tschandl, no por anotación experta independiente píxel a píxel. Esto
+acota la interpretación del Dice: el techo alcanzable está limitado por la consistencia
+de la propia anotación, no solo por la capacidad del modelo.
 
 Clases: `akiec`, `bcc`, `bkl`, `df`, `mel`, `nv`, `vasc`.
 

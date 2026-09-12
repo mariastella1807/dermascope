@@ -3,10 +3,12 @@
 seed: 42
 
 paths:
-  # Descomprimir aqui segun scripts/download_data.md
-  ham_metadata: data/raw/HAM10000_metadata.csv
+  # Descomprimir aqui segun scripts/download_data.md.
+  # El metadata de Harvard Dataverse viene como .tab (tabulaciones); build_splits
+  # tambien acepta .csv, que es el formato de los espejos de Kaggle.
+  ham_metadata: data/raw/HAM10000_metadata.tab
   ham_images: data/raw/HAM10000_images          # ISIC_xxxxxxx.jpg
-  seg_masks: data/raw/ISIC2018_Task1_masks      # ISIC_xxxxxxx_segmentation.png
+  seg_masks: data/raw/HAM10000_segmentations    # ISIC_xxxxxxx_segmentation.png
 
   processed: data/processed
   models: models

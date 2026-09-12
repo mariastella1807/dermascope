@@ -3,90 +3,102 @@
 El enunciado (§3) exige documentar claramente la fuente y el proceso de conformación del
 dataset. Este archivo es ese registro.
 
-## Fuentes
+## Fuente
 
-| Componente | Fuente primaria | Licencia | Qué aporta |
-| --- | --- | --- | --- |
-| Imágenes + etiquetas de 7 clases | HAM10000, Harvard Dataverse (ViDIR Group, Universidad Médica de Viena) — también distribuido como ISIC 2018 Task 3 | CC BY-NC 4.0 | 10.015 imágenes dermatoscópicas con diagnóstico y `lesion_id` |
-| Máscaras de segmentación | ISIC 2018 Challenge, Task 1 (Lesion Boundary Segmentation) | CC BY-NC 4.0 | 2.594 máscaras binarias de entrenamiento |
+**Todo proviene de un único depósito: Harvard Dataverse, DOI `10.7910/DVN/DBW86T`**
+(ViDIR Group, Universidad Médica de Viena). No requiere cuenta ni autenticación: la API
+de Dataverse permite descarga anónima.
 
-Ambos conjuntos provienen del archivo ISIC y comparten el identificador de imagen
-`ISIC_xxxxxxx`, lo que permite cruzarlos sin anotación manual. Esa es la razón de haber
-elegido este dominio: las dos tareas obligatorias del proyecto quedan cubiertas por
-anotaciones oficiales existentes.
+| Archivo | Tamaño | Contenido |
+| --- | --- | --- |
+| `HAM10000_metadata.tab` | 0,8 MB | `lesion_id`, `image_id`, `dx`, `dx_type`, `age`, `sex`, `localization`, `dataset` |
+| `HAM10000_images_part_1.zip` | 1,30 GB | ~5.000 imágenes dermatoscópicas |
+| `HAM10000_images_part_2.zip` | 1,34 GB | ~5.000 imágenes dermatoscópicas |
+| `HAM10000_segmentations_lesion_tschandl.zip` | 10,3 MB | 10.015 máscaras binarias de lesión |
 
-**Uso no comercial.** La licencia CC BY-NC permite el uso académico de este proyecto,
-pero obliga a citar la fuente y prohíbe el uso comercial. Citar en el informe:
+**Licencia:** CC BY-NC 4.0. Uso académico con atribución, sin uso comercial.
+
+### Por qué esta fuente y no el portal del ISIC
+
+El plan inicial era combinar HAM10000 (clasificación) con las máscaras del ISIC 2018
+Task 1 (segmentación), que son **2.594**. Al consultar el Dataverse apareció
+`HAM10000_segmentations_lesion_tschandl.zip`, que contiene máscaras para **las 10.015
+imágenes** del dataset completo, con la misma convención de nombre
+`ISIC_xxxxxxx_segmentation.png`.
+
+Tres ventajas sobre el plan original:
+
+1. El conjunto de segmentación pasa de 2.594 a ~10.015 imágenes, casi 4× más datos.
+2. Ambas tareas operan sobre **exactamente el mismo conjunto de imágenes**, así que el
+   split por `lesion_id` queda alineado entre las dos sin subconjuntos parciales.
+3. Una sola fuente y una sola licencia que documentar y citar, en vez de dos.
+
+Estas máscaras fueron generadas de forma semiautomática y revisadas manualmente por el
+grupo de Tschandl. Conviene declararlo en el informe: no son anotación experta
+píxel a píxel independiente, y eso acota la interpretación del Dice alcanzable.
+
+### Citas obligatorias
 
 > Tschandl, P., Rosendahl, C., Kittler, H. (2018). The HAM10000 dataset, a large
 > collection of multi-source dermatoscopic images of common pigmented skin lesions.
 > *Scientific Data*, 5, 180161.
 
-> Codella, N. et al. (2019). Skin Lesion Analysis Toward Melanoma Detection 2018:
-> A Challenge Hosted by the International Skin Imaging Collaboration (ISIC).
-> arXiv:1902.03368.
+> Tschandl, P. (2020). *HAM10000 dataset*. Harvard Dataverse.
+> https://doi.org/10.7910/DVN/DBW86T
 
 ## Descarga
 
-Las dos rutas funcionan; Kaggle suele ser más rápida y no requiere registro en el portal
-del challenge.
-
-### Opción A — Kaggle (recomendada)
-
-El CLI de Kaggle (2.2.x) ya viene instalado en el `.venv`. La autenticación tiene dos
-caminos; el primero es el más simple porque no hay token que administrar:
+No hace falta Kaggle ni registro en challenge.isic-archive.com. Los identificadores
+numéricos son los `id` de archivo que devuelve la API de Dataverse.
 
 ```powershell
-.\.venv\Scripts\kaggle.exe auth login          # flujo OAuth en el navegador
+$raw = "C:\ml-data\dermascope\raw"
+New-Item -ItemType Directory -Force $raw | Out-Null
+$ProgressPreference = 'SilentlyContinue'   # sin esto Invoke-WebRequest va muy lento
+
+# Metadata y mascaras (rapido)
+Invoke-WebRequest "https://dataverse.harvard.edu/api/access/datafile/4338392" -OutFile "$raw\HAM10000_metadata.tab"
+Invoke-WebRequest "https://dataverse.harvard.edu/api/access/datafile/3838943" -OutFile "$raw\segmentations.zip"
+
+# Imagenes (2,6 GB, lento)
+Invoke-WebRequest "https://dataverse.harvard.edu/api/access/datafile/3172585" -OutFile "$raw\HAM10000_images_part_1.zip"
+Invoke-WebRequest "https://dataverse.harvard.edu/api/access/datafile/3172584" -OutFile "$raw\HAM10000_images_part_2.zip"
 ```
 
-Si se prefiere token manual: Kaggle → Settings → API → *Generate New Token*, y guardarlo
-en `%USERPROFILE%\.kaggle\access_token` o exportarlo como `KAGGLE_API_TOKEN`.
-
-Descarga (la ruta de destino sale de `configs/paths.local.yaml`):
+Para listar los archivos y sus `id` actuales:
 
 ```powershell
-.\.venv\Scripts\kaggle.exe datasets download -d kmader/skin-cancer-mnist-ham10000 `
-    -p C:\ml-data\dermascope\raw --unzip
+Invoke-RestMethod "https://dataverse.harvard.edu/api/datasets/:persistentId/?persistentId=doi:10.7910/DVN/DBW86T"
 ```
 
-Las máscaras del Task 1 **no** están en ese dataset. Descargarlas del portal oficial del
-challenge (opción B) o de un espejo verificable en Kaggle, y anotar en el informe cuál
-se usó.
+Descomprimir las máscaras en `HAM10000_segmentations` y las dos partes de imágenes en
+`HAM10000_images`. El zip de máscaras trae una carpeta `__MACOSX` que se puede descartar.
 
-### Opción B — Portales oficiales
+## Ubicación de los datos
 
-1. **HAM10000** — Harvard Dataverse, DOI `10.7910/DVN/DBW86T`.
-   Descomprimir `HAM10000_images_part_1.zip` y `HAM10000_images_part_2.zip`.
-2. **Máscaras** — `challenge.isic-archive.com`, ISIC 2018 Task 1,
-   archivo `ISIC2018_Task1_Training_GroundTruth.zip`.
+En este equipo el dataset vive **fuera de OneDrive**, en `C:\ml-data\dermascope`,
+definido en `configs/paths.local.yaml` (archivo no versionado). La razón: son ~3 GB que
+OneDrive sincronizaría, y además puede bloquear archivos justo mientras el DataLoader
+los está leyendo. Cada integrante crea su propio `paths.local.yaml`; si no existe, se
+usan las rutas relativas `data/raw` de `configs/paths.yaml`.
 
 ## Estructura esperada
 
-`src/data/build_splits.py` busca estas rutas. En este equipo el dataset vive **fuera de
-OneDrive**, en `C:\ml-data\dermascope`, definido en `configs/paths.local.yaml` (archivo
-no versionado). La razón: son ~3 GB de JPEG que OneDrive sincronizaría, y además puede
-bloquear archivos justo mientras el DataLoader los lee. Cada integrante crea su propio
-`paths.local.yaml`; si no existe, se usan las rutas relativas `data/raw` de
-`configs/paths.yaml`.
-
 ```
 C:\ml-data\dermascope\raw\
-├── HAM10000_metadata.csv              # image_id, lesion_id, dx, dx_type, age, sex, localization
-├── HAM10000_images/                   # ISIC_0024306.jpg, ...
-│   ├── HAM10000_images_part_1/        # también acepta las dos subcarpetas originales
-│   └── HAM10000_images_part_2/
-└── ISIC2018_Task1_masks/              # ISIC_0024306_segmentation.png, ...
+├── HAM10000_metadata.tab           # build_splits detecta el separador por la extension
+├── HAM10000_images\                # ISIC_0024306.jpg, ...
+└── HAM10000_segmentations\         # ISIC_0024306_segmentation.png, ...
 ```
 
 ## Conformación de los splits
 
 ```powershell
-python -m src.data.build_splits --config configs/paths.yaml
+.\.venv\Scripts\python.exe -m src.data.build_splits --config configs/paths.yaml
 ```
 
-El script genera `data/processed/splits.csv` y aplica dos decisiones que hay que poder
-defender en la sustentación:
+El script genera `splits.csv` y aplica dos decisiones que hay que poder defender en la
+sustentación:
 
 1. **Agrupamiento por `lesion_id`.** HAM10000 contiene varias fotografías de la misma
    lesión física (~7.470 lesiones para 10.015 imágenes). Repartir por imagen pone la
@@ -96,9 +108,9 @@ defender en la sustentación:
    `vasc` en ~142, un reparto aleatorio puede dejar una clase sin representación en
    validación o test.
 
-El CSV marca con `has_mask` las filas que tienen máscara. El dataset de segmentación
-filtra por esa columna, así que **ambas tareas heredan el mismo split**: ninguna lesión
-que el clasificador vio en entrenamiento aparece en el test del segmentador ni al revés.
+El CSV marca con `has_mask` las filas que tienen máscara. Como la cobertura ahora es
+prácticamente total, ambas tareas comparten el mismo split y ninguna lesión que el
+clasificador vio en entrenamiento aparece en el test del segmentador ni al revés.
 
 ## Verificación
 
