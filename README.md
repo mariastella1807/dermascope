@@ -88,7 +88,24 @@ esta máquina. El entorno usa **Python 3.11 o 3.12**.
 
 ```powershell
 .\scripts\setup_env.ps1        # crea .venv con py -3.12 e instala requirements
+.\.venv\Scripts\python.exe scripts\smoke_test.py   # 9 comprobaciones, no necesita el dataset
 ```
+
+### Configuración local por integrante
+
+`load_config` aplica `configs/<nombre>.local.yaml` sobre el archivo pedido si existe, con
+fusión profunda. Esos archivos están en `.gitignore`, así que cada integrante ajusta sus
+rutas y su presupuesto de memoria sin generar conflictos, y **Colab usa los valores
+versionados** porque los overrides locales no viajan al repositorio.
+
+| Override | Para qué |
+| --- | --- |
+| `paths.local.yaml` | Dataset y checkpoints fuera de OneDrive |
+| `classification.local.yaml` | Menos workers en máquinas con poca RAM |
+| `segmentation.local.yaml` | Batch y workers reducidos para 512px en local |
+
+Correr `scripts/smoke_test.py` tras cualquier cambio de dependencias: detecta cambios de
+API antes de que aparezcan a mitad de un entrenamiento en Colab.
 
 Luego, en orden:
 

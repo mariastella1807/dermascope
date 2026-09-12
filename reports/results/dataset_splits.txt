@@ -1,0 +1,41 @@
+=== Imagenes por split y clase ===
+split  test  train   val    All
+dx                             
+akiec    51    225    51    327
+bcc      65    375    74    514
+bkl     166    771   162   1099
+df       19     77    19    115
+mel     160    798   155   1113
+nv     1020   4667  1018   6705
+vasc     21    101    20    142
+All    1502   7014  1499  10015
+
+=== Lesiones unicas por split ===
+split
+test     1120
+train    5230
+val      1120
+
+=== Cobertura de mascaras ===
+Imagenes con mascara: 10015 de 10015
+split  test  train   val    All
+dx                             
+akiec    51    225    51    327
+bcc      65    375    74    514
+bkl     166    771   162   1099
+df       19     77    19    115
+mel     160    798   155   1113
+nv     1020   4667  1018   6705
+vasc     21    101    20    142
+All    1502   7014  1499  10015
+
+=== Ejemplos por clase en test (confiabilidad del F1) ===
+df        19  <-- muy pocos, F1 con varianza alta
+vasc      21  <-- muy pocos, F1 con varianza alta
+akiec     51
+bcc       65
+mel      160
+bkl      166
+nv      1020
+
+OK: ninguna lesion aparece en mas de un split.

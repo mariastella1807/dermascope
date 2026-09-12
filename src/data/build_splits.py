@@ -124,7 +124,11 @@ def build(config_path: str) -> pd.DataFrame:
     splits = meta[columns].sort_values("image_id").reset_index(drop=True)
     splits.to_csv(out_dir / "splits.csv", index=False)
 
-    _report(splits)
+    # El reporte se persiste en reports/ (dentro del repositorio, a diferencia de los
+    # datos) porque es el material de la seccion de dataset del informe y conviene
+    # que quede versionado junto al codigo que lo genero.
+    report_path = resolve(cfg.paths.reports) / "results" / "dataset_splits.txt"
+    _report(splits, report_path)
     return splits
 
 
@@ -144,18 +148,33 @@ def _find_image(images_dir, image_id: str):
     raise FileNotFoundError(f"Imagen ausente para image_id={image_id} en {images_dir}")
 
 
-def _report(splits: pd.DataFrame) -> None:
-    print("\n=== Imagenes por split y clase ===")
-    print(pd.crosstab(splits["dx"], splits["split"], margins=True))
+def _report(splits: pd.DataFrame, report_path=None) -> None:
+    lines: list[str] = []
 
-    print("\n=== Lesiones unicas por split ===")
-    print(splits.groupby("split")["lesion_id"].nunique())
+    def emit(text: str = "") -> None:
+        print(text)
+        lines.append(str(text))
 
-    print("\n=== Cobertura de mascaras (subconjunto de segmentacion) ===")
+    emit("=== Imagenes por split y clase ===")
+    emit(pd.crosstab(splits["dx"], splits["split"], margins=True).to_string())
+
+    emit("\n=== Lesiones unicas por split ===")
+    emit(splits.groupby("split")["lesion_id"].nunique().to_string())
+
+    emit("\n=== Cobertura de mascaras ===")
     with_mask = splits[splits["has_mask"]]
-    print(f"Imagenes con mascara: {len(with_mask)} de {len(splits)}")
+    emit(f"Imagenes con mascara: {len(with_mask)} de {len(splits)}")
     if len(with_mask):
-        print(pd.crosstab(with_mask["dx"], with_mask["split"], margins=True))
+        emit(pd.crosstab(with_mask["dx"], with_mask["split"], margins=True).to_string())
+
+    # Las clases raras quedan con muy pocos ejemplos en test, y de ahi que su F1 sea
+    # la metrica menos confiable del proyecto. Se deja explicito en el reporte para
+    # que la limitacion llegue al informe en vez de descubrirse al final.
+    emit("\n=== Ejemplos por clase en test (confiabilidad del F1) ===")
+    test_counts = splits[splits["split"] == "test"]["dx"].value_counts().sort_values()
+    for dx, count in test_counts.items():
+        warning = "  <-- muy pocos, F1 con varianza alta" if count < 30 else ""
+        emit(f"{dx:6s} {count:5d}{warning}")
 
     # Verificacion de fuga: ninguna lesion debe aparecer en dos splits.
     leaked = (
@@ -163,7 +182,12 @@ def _report(splits: pd.DataFrame) -> None:
     )
     if leaked:
         raise AssertionError(f"Fuga de lesiones entre splits: {leaked[:10]}")
-    print("\nOK: ninguna lesion aparece en mas de un split.")
+    emit("\nOK: ninguna lesion aparece en mas de un split.")
+
+    if report_path is not None:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"\nReporte guardado en {report_path}")
 
 
 def main() -> None:
