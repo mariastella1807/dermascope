@@ -60,10 +60,12 @@ def segmentation_train_transform(cfg) -> A.Compose:
     return A.Compose(
         [
             A.Resize(size, size),
-            A.ShiftScaleRotate(
-                shift_limit=aug.shift_limit,
-                scale_limit=aug.scale_limit,
-                rotate_limit=45,
+            # Affine y no ShiftScaleRotate: en albumentations 2.x el segundo esta
+            # deprecado y advierte que es un caso particular de este.
+            A.Affine(
+                translate_percent=(-aug.shift_limit, aug.shift_limit),
+                scale=(1 - aug.scale_limit, 1 + aug.scale_limit),
+                rotate=(-45, 45),
                 border_mode=0,
                 p=0.7,
             ),

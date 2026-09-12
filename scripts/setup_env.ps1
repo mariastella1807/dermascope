@@ -7,10 +7,14 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
+# La deteccion se hace sobre la lista del launcher y no con `py -3.12 --version`:
+# en PowerShell 5.1, redirigir la salida de error de un ejecutable nativo marca el
+# comando como fallido aunque haya devuelto codigo 0, asi que esa comprobacion no es
+# confiable aqui.
+$available = (& py -0p) -join "`n"
 $interpreter = $null
 foreach ($version in @("3.12", "3.11")) {
-    & py "-$version" --version 2>$null
-    if ($?) { $interpreter = $version; break }
+    if ($available -match [regex]::Escape($version)) { $interpreter = $version; break }
 }
 
 if (-not $interpreter) {
