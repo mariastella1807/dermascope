@@ -127,7 +127,11 @@ def evaluate_onnx(onnx_path: Path, loader, class_names: list[str]) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/classification.yaml")
-    parser.add_argument("--checkpoint", default="models/classifier_cbam_best.pt")
+    parser.add_argument(
+        "--checkpoint",
+        default=None,
+        help="Por defecto, classifier_cbam_best.pt dentro de paths.models",
+    )
     args = parser.parse_args()
 
     from src.data.datasets import make_dataloaders
@@ -138,8 +142,17 @@ def main() -> None:
     models_dir = resolve(cfg.paths.models)
     class_names = list(cfg.classes)
 
+    # El checkpoint vive en paths.models, que los overrides locales mueven fuera del
+    # repo (OneDrive en local, /content en Colab). Anclarlo a la raiz del repo hacia
+    # que el default no existiera en ninguna de las dos maquinas.
+    checkpoint = resolve(args.checkpoint) if args.checkpoint else models_dir / "classifier_cbam_best.pt"
+    if not checkpoint.exists():
+        raise SystemExit(
+            f"No existe {checkpoint}. Entrena el clasificador con CBAM antes de cuantizar."
+        )
+
     model = build_classifier(cfg)
-    state = torch.load(resolve(args.checkpoint), map_location="cpu")
+    state = torch.load(checkpoint, map_location="cpu")
     model.load_state_dict(state["model"] if "model" in state else state)
 
     loaders, datasets = make_dataloaders(cfg, "classification")
