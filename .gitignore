@@ -28,3 +28,6 @@ reports/figures/*
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Enunciado del curso: material del docente, se consulta en local pero no se publica
+Proyecto_2_Vision_Computacional_Deep_Learning.docx
