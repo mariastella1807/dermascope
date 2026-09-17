@@ -29,7 +29,9 @@ train:
   loss: bce_dice              # BCE sola sesga hacia el fondo, que domina el area
   dice_weight: 0.5
   amp: true
-  early_stopping_patience: 6
+  # Sin parada temprana, igual que el clasificador: las dos corridas de la comparacion
+  # completan las mismas epocas y el checkpoint conserva la mejor.
+  early_stopping_patience: null
   monitor: val_dice
 
 augment:

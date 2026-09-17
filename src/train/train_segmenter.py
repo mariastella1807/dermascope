@@ -24,7 +24,7 @@ import torch
 
 from src.config import load_config, resolve, set_seed
 from src.eval.metrics import bce_dice_loss, dice_coefficient, iou_score
-from src.train.checkpointing import cargar_estado, guardar_estado
+from src.train.checkpointing import cargar_estado, detener_si_no_finita, guardar_estado
 
 
 def run_epoch(model, loader, optimizer, scaler, device, cfg, train: bool, per_image: bool = False):
@@ -162,6 +162,7 @@ def main() -> None:
         va_loss, va_dice, va_iou = run_epoch(
             model, loaders["val"], optimizer, scaler, device, cfg, False
         )
+        detener_si_no_finita(epoch, va_loss)
         scheduler.step(va_loss)
 
         history.append(
@@ -195,7 +196,8 @@ def main() -> None:
             print(f"  -> nuevo mejor Dice, checkpoint en {ckpt_path.name}")
         else:
             stale += 1
-            if stale >= cfg.train.early_stopping_patience:
+            paciencia = cfg.train.early_stopping_patience
+            if paciencia is not None and stale >= paciencia:
                 print(f"Early stopping en la epoca {epoch}")
                 detenido = True
 

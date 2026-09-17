@@ -11,6 +11,9 @@ entrenamiento.
 El checkpoint se selecciona por `val_macro_f1`, no por accuracy: con nv al 67% del
 dataset, la accuracy de validacion sube sola sin que el modelo aprenda las clases raras.
 
+`train.early_stopping_patience: null` desactiva la parada temprana, para que las dos
+corridas de la ablacion entrenen el mismo numero de epocas.
+
 Reanudable: al final de cada epoca se guarda `classifier_<tag>_last.pt`. Si la sesion se
 interrumpe, volver a lanzar el mismo comando continua desde la ultima epoca completada.
 """
@@ -27,7 +30,7 @@ import torch.nn as nn
 
 from src.config import load_config, resolve, set_seed
 from src.eval.metrics import class_weights_balanced, classification_metrics
-from src.train.checkpointing import cargar_estado, guardar_estado
+from src.train.checkpointing import cargar_estado, detener_si_no_finita, guardar_estado
 
 
 def run_epoch(model, loader, criterion, optimizer, scaler, device, train: bool):
@@ -164,6 +167,7 @@ def main() -> None:
         val_loss, yte, ype = run_epoch(
             model, loaders["val"], criterion, optimizer, scaler, device, False
         )
+        detener_si_no_finita(epoch, val_loss)
         scheduler.step(val_loss)
 
         train_m = classification_metrics(ytr, ypr, class_names)
@@ -201,7 +205,8 @@ def main() -> None:
             print(f"  -> nuevo mejor macro-F1, checkpoint guardado en {ckpt_path.name}")
         else:
             epochs_without_improvement += 1
-            if epochs_without_improvement >= cfg.train.early_stopping_patience:
+            paciencia = cfg.train.early_stopping_patience
+            if paciencia is not None and epochs_without_improvement >= paciencia:
                 print(f"Early stopping en la epoca {epoch}")
                 detenido = True
 
@@ -239,6 +244,8 @@ def main() -> None:
         "checkpoint_mb": ckpt_path.stat().st_size / 1e6,
         "train_minutes": minutos_previos + (time.time() - start) / 60,
         "best_val_macro_f1": best_metric,
+        "epochs_planned": cfg.train.epochs,
+        "early_stopping_patience": cfg.train.early_stopping_patience,
         "test": {k: v for k, v in test_m.items() if k != "report"},
         "test_predictions": test_predictions,
         "history": history,

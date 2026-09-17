@@ -56,6 +56,24 @@ def guardar_estado(ruta: Path, *, model, optimizer, scheduler, scaler, epoch: in
     os.replace(temporal, ruta)
 
 
+def historial_finito(history: list) -> bool:
+    """True si ninguna epoca del historial tiene perdida NaN o infinita."""
+    return all(np.isfinite(h["train_loss"]) and np.isfinite(h["val_loss"]) for h in history)
+
+
+def detener_si_no_finita(epoch: int, val_loss: float) -> None:
+    """Detiene el entrenamiento si la perdida de validacion dejo de ser un numero finito.
+
+    Se llama antes de guardar la epoca, asi que el estado para reanudar queda en la ultima
+    epoca sana y el mejor checkpoint no se toca.
+    """
+    if not np.isfinite(val_loss):
+        raise SystemExit(
+            f"Epoca {epoch}: la perdida de validacion es {val_loss}. El modelo produjo NaN o "
+            "infinitos y seguir entrenando no tiene sentido; se detiene sin guardar esta epoca."
+        )
+
+
 def cargar_estado(ruta: Path, *, model, optimizer, scheduler, scaler, device) -> dict | None:
     """Restaura el estado guardado. Devuelve None si no hay nada que reanudar."""
     if not ruta.exists():
@@ -63,6 +81,10 @@ def cargar_estado(ruta: Path, *, model, optimizer, scheduler, scaler, device) ->
     # weights_only=False: el archivo lo escribe este mismo script y contiene objetos de
     # Python (estados de los generadores aleatorios) ademas de tensores.
     estado = torch.load(ruta, map_location=device, weights_only=False)
+    if not historial_finito(estado["history"]):
+        print(f"{ruta.name} contiene epocas con perdida NaN o infinita: se descarta y se "
+              "entrena desde cero.")
+        return None
     model.load_state_dict(estado["model"])
     optimizer.load_state_dict(estado["optimizer"])
     scheduler.load_state_dict(estado["scheduler"])

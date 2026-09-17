@@ -127,6 +127,11 @@ class SelfAttention2d(nn.Module):
     - Conexion residual, x + Atencion(x). La proyeccion de salida arranca en ceros, asi
       que al inicio del entrenamiento el bloque es la identidad y no altera los features
       preentrenados; solo empieza a aportar si eso reduce la perdida.
+
+    Los puntajes Q K^T se calculan siempre en float32. Con precision mixta, Q y K llegan en
+    float16, cuyo maximo representable es 65.504; a medida que crecen los pesos, el
+    producto de dos vectores de 512 dimensiones supera ese limite, se vuelve infinito y el
+    softmax devuelve NaN, lo que arruina el entrenamiento de ahi en adelante.
     """
 
     def __init__(self, channels: int, n_tokens: int) -> None:
@@ -156,9 +161,13 @@ class SelfAttention2d(nn.Module):
         t = self.norm(tokens + self.pos_embed)
         q, k, v = self.query(t), self.key(t), self.value(t)
 
-        scores = q @ k.transpose(1, 2) / math.sqrt(c)  # (B, N, N)
-        weights = scores.softmax(dim=-1)                # cada fila suma 1
+        # Sin autocast: el producto se hace en float32 aunque el resto de la red use float16.
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            q, k, v = q.float(), k.float(), v.float()
+            scores = q @ k.transpose(1, 2) / math.sqrt(c)  # (B, N, N)
+            weights = scores.softmax(dim=-1)                # cada fila suma 1
+            combinacion = weights @ v
         self.last_attention = weights.detach()
 
-        tokens = tokens + self.proj(weights @ v)
+        tokens = tokens + self.proj(combinacion.to(tokens.dtype))
         return tokens.transpose(1, 2).reshape(b, c, h, w)

@@ -32,7 +32,11 @@ train:
   # Desbalance nv:df ~ 58:1. Pesos inversos a la frecuencia, calculados en runtime.
   class_weights: balanced
   amp: true                   # precision mixta en GPU (float16), mas rapido en la T4
-  early_stopping_patience: 6
+  # Sin parada temprana: todas las corridas completan las mismas epocas. Con parada
+  # temprana, una inestabilidad pasajera puede cortar una corrida antes que la otra, y la
+  # diferencia de la ablacion ya no seria atribuible solo a CBAM. El sobreajuste lo
+  # controla el checkpoint, que conserva la mejor epoca y no la ultima.
+  early_stopping_patience: null
   monitor: val_macro_f1       # no val_accuracy: el desbalance la hace enganosa
 
 augment:

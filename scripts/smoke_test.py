@@ -230,7 +230,19 @@ def _self_attention() -> str:
     weights = block.last_attention
     assert tuple(weights.shape) == (2, 16, 16), f"atencion: {weights.shape}"
     assert torch.allclose(weights.sum(dim=-1), torch.ones(2, 16)), "las filas no suman 1"
-    return "softmax(QK^T/sqrt(d))V: filas suman 1, identidad al inicio"
+
+    # Estabilidad en float16: con Q y K grandes, Q K^T supera 65.504 (maximo de float16).
+    # El bloque calcula los puntajes en float32, asi que la salida debe seguir siendo finita.
+    grande = SelfAttention2d(channels=32, n_tokens=16).half()
+    with torch.no_grad():
+        grande.query.weight.fill_(2.0)
+        grande.key.weight.fill_(2.0)
+        grande.proj.weight.normal_(std=0.02)
+    salida = grande(torch.randn(2, 32, 4, 4).half())
+    producto_fp16 = (torch.full((1, 32), 300.0).half() @ torch.full((32, 1), 300.0).half()).item()
+    assert producto_fp16 == float("inf"), "el ejemplo deberia desbordar en float16"
+    assert torch.isfinite(salida).all(), "la atencion produjo NaN o infinitos en float16"
+    return "softmax(QK^T/sqrt(d))V: filas suman 1, identidad al inicio, estable en float16"
 
 
 @check("U-Net con y sin self-attention")
