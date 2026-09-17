@@ -25,7 +25,7 @@ train:
   lr: 3.0e-4
   head_lr_multiplier: 10.0    # cabeza nueva aprende mas rapido que el backbone preentrenado
   weight_decay: 1.0e-4
-  # ReduceLROnPlateau sobre val_loss, con los valores del taller de la Semana 3:
+  # ReduceLROnPlateau sobre val_loss:
   # si la perdida de validacion no mejora en 2 epocas, el lr se reduce a la mitad.
   plateau_factor: 0.5
   plateau_patience: 2

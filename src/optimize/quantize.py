@@ -37,6 +37,16 @@ import torch
 from src.config import load_config, resolve, set_seed
 
 
+def onnx_size_mb(path: Path) -> float:
+    """Tamano en disco del modelo ONNX, sumando sus archivos de pesos externos si los hay.
+
+    Algunos exportadores guardan la estructura en `modelo.onnx` y los pesos en
+    `modelo.onnx.data`. Medir solo el primero reportaria un modelo de pocos KB y la
+    comparacion de tamano antes y despues seria falsa.
+    """
+    return sum(f.stat().st_size for f in path.parent.glob(path.name + "*")) / 1e6
+
+
 def export_onnx(model: torch.nn.Module, path: Path, image_size: int, opset: int) -> Path:
     """Exporta a ONNX con batch dinamico, para poder medir batch 1 y 8 sin reexportar."""
     model = model.eval().cpu()
@@ -51,8 +61,13 @@ def export_onnx(model: torch.nn.Module, path: Path, image_size: int, opset: int)
         dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
         opset_version=opset,
         do_constant_folding=True,
+        # Exportador clasico: genera un unico archivo con los pesos incluidos y un grafo
+        # que el preprocesado de ONNX Runtime analiza sin problemas. El exportador nuevo
+        # (dynamo) separa los pesos en otro archivo y su grafo hace fallar la inferencia
+        # de formas previa a la cuantizacion.
+        dynamo=False,
     )
-    print(f"ONNX FP32 exportado: {path} ({path.stat().st_size / 1e6:.2f} MB)")
+    print(f"ONNX FP32 exportado: {path} ({onnx_size_mb(path):.2f} MB)")
     return path
 
 
@@ -102,7 +117,7 @@ def quantize_static(fp32_path: Path, int8_path: Path, reader) -> Path:
         activation_type=QuantType.QUInt8,
     )
     prepared.unlink(missing_ok=True)
-    print(f"ONNX INT8 generado: {int8_path} ({int8_path.stat().st_size / 1e6:.2f} MB)")
+    print(f"ONNX INT8 generado: {int8_path} ({onnx_size_mb(int8_path):.2f} MB)")
     return int8_path
 
 
@@ -134,7 +149,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    from src.data.datasets import make_dataloaders
+    from src.data import transforms as T
+    from src.data.datasets import DermaClassificationDataset, make_dataloaders
     from src.models.classifier import build_classifier
 
     cfg = load_config(args.config)
@@ -160,7 +176,14 @@ def main() -> None:
     fp32 = export_onnx(
         model, models_dir / "classifier_fp32.onnx", cfg.data.image_size, cfg.optimize.onnx_opset
     )
-    reader = CalibrationReader(datasets["train"], cfg.optimize.calibration_samples)
+    # La calibracion usa imagenes de train, pero con la transformacion de EVALUACION.
+    # Las de entrenamiento (recortes, volteos, cambios de color aleatorios) producirian
+    # rangos de activacion que no ocurren al evaluar ni en el aplicativo, y las escalas
+    # INT8 quedarian ajustadas a una distribucion distinta de la real.
+    calibration_set = DermaClassificationDataset(
+        datasets["train"].frame, T.classification_eval_transform(cfg)
+    )
+    reader = CalibrationReader(calibration_set, cfg.optimize.calibration_samples)
     int8 = quantize_static(fp32, models_dir / "classifier_int8.onnx", reader)
 
     print("\nEvaluando FP32 ...")
@@ -171,18 +194,18 @@ def main() -> None:
     f1_drop = metrics_fp32["macro_f1"] - metrics_int8["macro_f1"]
     summary = {
         "fp32": {
-            "size_mb": fp32.stat().st_size / 1e6,
+            "size_mb": onnx_size_mb(fp32),
             "accuracy": metrics_fp32["accuracy"],
             "macro_f1": metrics_fp32["macro_f1"],
             "per_class_f1": metrics_fp32["per_class_f1"],
         },
         "int8": {
-            "size_mb": int8.stat().st_size / 1e6,
+            "size_mb": onnx_size_mb(int8),
             "accuracy": metrics_int8["accuracy"],
             "macro_f1": metrics_int8["macro_f1"],
             "per_class_f1": metrics_int8["per_class_f1"],
         },
-        "size_reduction": 1 - (int8.stat().st_size / fp32.stat().st_size),
+        "size_reduction": 1 - (onnx_size_mb(int8) / onnx_size_mb(fp32)),
         "macro_f1_drop": f1_drop,
         "within_tolerance": bool(f1_drop <= cfg.optimize.max_f1_drop),
     }

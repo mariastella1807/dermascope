@@ -11,8 +11,14 @@ Grad-CAM cae dentro de la mascara real de la lesion. Ese numero convierte el ana
 cualitativo de los mapas en evidencia cuantitativa, que es mas defendible en la
 sustentacion que "se ve mejor".
 
+Esta metrica NO es la misma que muestra el aplicativo. Aqui se usa Grad-CAM y la mascara
+ANOTADA del dataset, porque el objetivo es medir si el clasificador atiende a la lesion
+real. El aplicativo no tiene anotacion: usa SmoothGrad-CAM y la mascara PREDICHA por el
+segmentador. Los dos numeros responden preguntas distintas y no deben compararse.
+
 Uso:
     python -m src.eval.compare_ablation
+    python -m src.eval.compare_ablation --localization-per-class 20   # muestra rapida
 """
 
 from __future__ import annotations
@@ -88,11 +94,17 @@ def _predict_probs(model, tensor):
     return torch.sigmoid(model(tensor))[0, 0].cpu().numpy()
 
 
-def attention_localization(cfg_cls, n_images: int = 100) -> pd.DataFrame:
-    """Fraccion de la masa de Grad-CAM dentro de la mascara real, con y sin CBAM.
+def attention_localization(
+    cfg_cls, per_class: int | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fraccion de la masa de Grad-CAM dentro de la mascara anotada, con y sin CBAM.
 
-    Se evalua solo sobre imagenes de test que tienen mascara anotada, porque la mascara
-    de referencia es lo que define "dentro de la lesion".
+    Por defecto usa todas las imagenes de test con mascara. Con `per_class=N` toma una
+    muestra estratificada de hasta N imagenes por clase (semilla fija), util en CPU.
+    Una muestra no estratificada estaria dominada por `nv` (67% del test) y no permitiria
+    conclusiones sobre las clases minoritarias.
+
+    Devuelve dos tablas: un resumen por modelo y el detalle por clase.
     """
     from src.data import transforms as T
     from src.data.datasets import load_splits, read_mask, read_rgb
@@ -100,16 +112,21 @@ def attention_localization(cfg_cls, n_images: int = 100) -> pd.DataFrame:
     from src.models.classifier import build_classifier
 
     splits = load_splits(cfg_cls)
-    subset = splits[(splits["split"] == "test") & (splits["has_mask"])].head(n_images)
+    subset = splits[(splits["split"] == "test") & (splits["has_mask"])]
+    if per_class is not None:
+        # Barajar con semilla fija y quedarse con las primeras N de cada clase.
+        subset = subset.sample(frac=1, random_state=cfg_cls.seed).groupby("dx").head(per_class)
+    subset = subset.reset_index(drop=True)
     if subset.empty:
         print("No hay imagenes de test con mascara: se omite la metrica de localizacion.")
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     eval_tf = T.classification_eval_transform(cfg_cls)
     models_dir = resolve(cfg_cls.paths.models)
+    etiquetas = {"nocbam": "ResNet-34 (sin CBAM)", "cbam": "ResNet-34 + CBAM"}
 
-    rows = []
+    fracciones: dict[str, list[float]] = {}
     for tag, use_cbam in [("nocbam", False), ("cbam", True)]:
         ckpt = models_dir / f"classifier_{tag}_best.pt"
         if not ckpt.exists():
@@ -119,7 +136,7 @@ def attention_localization(cfg_cls, n_images: int = 100) -> pd.DataFrame:
         model = build_classifier(cfg_cls, override_cbam=use_cbam).to(device)
         model.load_state_dict(torch.load(ckpt, map_location=device)["model"])
 
-        fractions = []
+        valores = []
         with GradCAM(model, model.gradcam_target_layer) as cam_fn:
             for _, row in subset.iterrows():
                 tensor = eval_tf(read_rgb(row["image_path"])).unsqueeze(0).to(device)
@@ -129,17 +146,38 @@ def attention_localization(cfg_cls, n_images: int = 100) -> pd.DataFrame:
                 # vecino mas cercano, para que siga siendo binaria.
                 mask = torch.from_numpy(read_mask(row["mask_path"])).float()[None, None]
                 mask = torch.nn.functional.interpolate(mask, size=cam.shape, mode="nearest")
-                fractions.append(attention_mass_in_mask(cam, mask[0, 0].numpy()))
+                valores.append(attention_mass_in_mask(cam, mask[0, 0].numpy()))
+        fracciones[tag] = valores
 
-        rows.append(
-            {
-                "modelo": "ResNet-34 + CBAM" if use_cbam else "ResNet-34 (sin CBAM)",
-                "n_imagenes": len(fractions),
-                "masa_atencion_en_lesion_media": round(float(np.mean(fractions)), 4),
-                "masa_atencion_en_lesion_p50": round(float(np.median(fractions)), 4),
-            }
-        )
-    return pd.DataFrame(rows)
+    if not fracciones:
+        return pd.DataFrame(), pd.DataFrame()
+
+    detalle = subset[["image_id", "dx"]].copy()
+    for tag, valores in fracciones.items():
+        detalle[tag] = valores
+
+    resumen = []
+    for tag, valores in fracciones.items():
+        fila = {
+            "modelo": etiquetas[tag],
+            "n_imagenes": len(valores),
+            "media": round(float(np.mean(valores)), 4),
+            "mediana": round(float(np.median(valores)), 4),
+            # Promedio de las medias por clase: cada clase pesa igual, como en el macro-F1.
+            "media_por_clase": round(float(detalle.groupby("dx")[tag].mean().mean()), 4),
+        }
+        if tag == "cbam" and "nocbam" in fracciones:
+            diferencia = detalle["cbam"] - detalle["nocbam"]
+            fila["diferencia_media_vs_sin_cbam"] = round(float(diferencia.mean()), 4)
+            fila["imagenes_con_mas_atencion_en_lesion"] = f"{(diferencia > 0).mean():.1%}"
+        resumen.append(fila)
+
+    por_clase = detalle.groupby("dx").agg(
+        n_imagenes=("image_id", "size"),
+        **{etiquetas[tag]: (tag, "mean") for tag in fracciones},
+    ).round(4).reset_index().rename(columns={"dx": "clase"})
+
+    return pd.DataFrame(resumen), por_clase
 
 
 def main() -> None:
@@ -149,6 +187,12 @@ def main() -> None:
         "--skip-localization",
         action="store_true",
         help="Omite la metrica de Grad-CAM, que requiere ambos checkpoints",
+    )
+    parser.add_argument(
+        "--localization-per-class",
+        type=int,
+        default=None,
+        help="Muestra estratificada de N imagenes por clase. Por defecto, todo el test.",
     )
     args = parser.parse_args()
 
@@ -171,7 +215,9 @@ def main() -> None:
         "comparacion_segmentacion": segmentation_table(results),
     }
     if not args.skip_localization:
-        tables["localizacion_atencion"] = attention_localization(cfg)
+        resumen, por_clase = attention_localization(cfg, args.localization_per_class)
+        tables["localizacion_atencion"] = resumen
+        tables["localizacion_atencion_por_clase"] = por_clase
 
     for name, table in tables.items():
         if table.empty:

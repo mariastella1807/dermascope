@@ -5,8 +5,8 @@ construyen y producen tensores de la forma esperada. Correr esto despues de crea
 entorno y cada vez que se actualicen dependencias: detecta cambios de API en torch o
 torchvision antes de que aparezcan a mitad de un entrenamiento en Colab.
 
-La ultima comprobacion verifica que el proyecto no importe librerias que no se han visto
-en clase (albumentations, opencv, transformers, segmentation-models-pytorch).
+La ultima comprobacion verifica que el proyecto no importe librerias ajenas a su conjunto
+de dependencias (albumentations, opencv, transformers, segmentation-models-pytorch).
 
 Uso:
     .venv\\Scripts\\python.exe scripts/smoke_test.py
@@ -259,7 +259,40 @@ def _unet() -> str:
     )
 
 
-@check("sin librerias fuera del curso")
+@check("ablaciones controladas")
+def _controlled_ablation() -> str:
+    """Con la misma semilla, lo comun a las dos corridas debe arrancar identico.
+
+    Si el bloque de atencion se inicializara antes que las capas nuevas comunes, estas
+    arrancarian con pesos distintos y la ablacion no aislaria el efecto del bloque.
+    """
+    import torch
+
+    from src.config import load_config, set_seed
+    from src.models.classifier import build_classifier
+    from src.models.segmenter import build_segmenter
+
+    cls_cfg = load_config("configs/classification.yaml")
+    seg_cfg = load_config("configs/segmentation.yaml")
+
+    def construir(fabrica):
+        set_seed(42)
+        return fabrica()
+
+    con = construir(lambda: build_classifier(cls_cfg, override_cbam=True))
+    sin = construir(lambda: build_classifier(cls_cfg, override_cbam=False))
+    assert torch.equal(con.net.fc[1].weight, sin.net.fc[1].weight), "la capa final arranca distinta con y sin CBAM"
+
+    con = construir(lambda: build_segmenter(seg_cfg, override_attention=True))
+    sin = construir(lambda: build_segmenter(seg_cfg, override_attention=False))
+    comunes = [n for n, _ in sin.named_parameters()]
+    params_con = dict(con.named_parameters())
+    distintos = [n for n, p in sin.named_parameters() if not torch.equal(p, params_con[n])]
+    assert not distintos, f"la U-Net arranca distinta con y sin atencion en: {distintos[:3]}"
+    return f"capa final del clasificador y {len(comunes)} tensores comunes de la U-Net identicos"
+
+
+@check("dependencias permitidas")
 def _no_external_libraries() -> str:
     import importlib
     import pkgutil
@@ -267,7 +300,7 @@ def _no_external_libraries() -> str:
     import src
 
     # Importa todos los modulos del proyecto y del app, y revisa que ninguno haya
-    # arrastrado una libreria que no se vio en clase.
+    # arrastrado una libreria ajena a las dependencias declaradas.
     for module in pkgutil.walk_packages(src.__path__, prefix="src."):
         importlib.import_module(module.name)
     importlib.import_module("app.inference")

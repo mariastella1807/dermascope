@@ -1,13 +1,13 @@
 """Segmentador de la lesion: U-Net con encoder ResNet-34 y self-attention (§4.2, §4.3).
 
-Arquitectura, en terminos de lo visto en clase:
+Arquitectura:
 
-- Encoder: ResNet-34 preentrenada en ImageNet (Semana 3), la misma familia que el
+- Encoder: ResNet-34 preentrenada en ImageNet, la misma familia que el
   clasificador. Cada etapa reduce la resolucion a la mitad y entrega un mapa de
   caracteristicas que se guarda para las skip connections.
 - Cuello de botella: un bloque de self-attention (`SelfAttention2d`, la operacion de ViT)
   sobre el mapa de 8x8 de `layer4`.
-- Decoder: U-Net (Semana 6). Cada bloque sube la resolucion x2, concatena el mapa del
+- Decoder: U-Net (Ronneberger et al., 2015). Cada bloque sube la resolucion x2, concatena el mapa del
   encoder de la misma escala y aplica dos convoluciones 3x3. Las skip connections
   devuelven el detalle espacial fino que el encoder perdio al reducir, y es lo que
   permite trazar un borde preciso.
@@ -83,17 +83,21 @@ class DermaUNet(nn.Module):
         self.layer3 = resnet.layer3                                         # /16, 256
         self.layer4 = resnet.layer4                                         # /32, 512
 
-        n_tokens = (image_size // 32) ** 2
-        self.attention = (
-            SelfAttention2d(512, n_tokens) if use_self_attention else nn.Identity()
-        )
-
         self.dec4 = DecoderBlock(512, 256, 256)  # /16
         self.dec3 = DecoderBlock(256, 128, 128)  # /8
         self.dec2 = DecoderBlock(128, 64, 64)    # /4
         self.dec1 = DecoderBlock(64, 64, 64)     # /2
         self.dec0 = DecoderBlock(64, 0, 32)      # /1, sin skip: ya es la resolucion de entrada
         self.head = nn.Conv2d(32, num_classes, kernel_size=1)
+
+        # La atencion se crea AL FINAL: inicializarla consume numeros aleatorios, y si
+        # fuera antes del decoder, este arrancaria con pesos distintos en la corrida con y
+        # sin atencion. Asi, con la misma semilla, todo lo comun es identico y la
+        # ablacion solo cambia el bloque.
+        n_tokens = (image_size // 32) ** 2
+        self.attention = (
+            SelfAttention2d(512, n_tokens) if use_self_attention else nn.Identity()
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x0 = self.stem(x)
@@ -112,8 +116,7 @@ class DermaUNet(nn.Module):
     def param_groups(self, base_lr: float, head_multiplier: float = 10.0):
         """Encoder preentrenado con lr base; atencion y decoder, nuevos, con lr mayor.
 
-        Es el fine-tuning con tasas de aprendizaje diferenciadas de la Semana 3, igual
-        que en el clasificador.
+        Es el mismo fine-tuning con tasas de aprendizaje diferenciadas del clasificador.
         """
         encoder, new = [], []
         for name, param in self.named_parameters():

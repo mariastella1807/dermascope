@@ -29,8 +29,12 @@ reports/figures/*
 .DS_Store
 Thumbs.db
 
-# Enunciado del curso: material del docente, se consulta en local pero no se publica
+# Enunciado del proyecto: documento de consulta local, no se publica
 Proyecto_2_Vision_Computacional_Deep_Learning.docx
 
-# Material de clase de consulta (notebooks, PDFs y zips del curso, ~78 MB). No se publica.
+# Material de consulta local (notebooks, PDFs y zips, ~78 MB). No se publica.
 Para referencia/
+
+# Herramientas internas de revision del proyecto (comando y reportes de auditoria). No se publican.
+.claude/
+reports/auditorias/

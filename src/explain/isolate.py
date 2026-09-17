@@ -8,7 +8,7 @@ Postprocesado antes de recortar:
 
 - Cierre morfologico: rellena los huecos que deja la prediccion en lesiones con pelo
   atravesado, donde el modelo suele cortar la mascara a lo largo del vello. Se implementa
-  con max pooling (Semana 2): dilatar es tomar el maximo de cada ventana, y erosionar es
+  con max pooling: dilatar es tomar el maximo de cada ventana, y erosionar es
   tomar el minimo, que equivale a `-max_pool(-mascara)`. Cerrar es dilatar y luego erosionar.
 - Region conectada mas grande: en dermatoscopia hay una sola lesion por imagen, asi que
   cualquier region suelta es ruido de prediccion. Descartarla evita que el recorte

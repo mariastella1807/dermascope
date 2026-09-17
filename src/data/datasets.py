@@ -85,8 +85,12 @@ class DermaSegmentationDataset(Dataset):
         return image, mask.unsqueeze(0).float()  # (1, H, W) en 0/1
 
 
-def make_dataloaders(cfg, task: str):
-    """Construye los tres DataLoader para `task` in {"classification", "segmentation"}."""
+def make_dataloaders(cfg, task: str, limit: int | None = None):
+    """Construye los tres DataLoader para `task` in {"classification", "segmentation"}.
+
+    `limit` recorta cada split a sus primeras filas. Solo sirve para el modo `--quick`
+    de los scripts de entrenamiento, que verifica que todo corre sin gastar horas.
+    """
     from torch.utils.data import DataLoader
 
     from src.data import transforms as T
@@ -108,6 +112,8 @@ def make_dataloaders(cfg, task: str):
     datasets = {}
     for split in ("train", "val", "test"):
         frame = splits[splits["split"] == split]
+        if limit is not None:
+            frame = frame.head(limit)
         dataset = ds_cls(frame, train_tf if split == "train" else eval_tf)
         datasets[split] = dataset
         loaders[split] = DataLoader(

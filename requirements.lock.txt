@@ -35,7 +35,9 @@ narwhals==2.26.0
 networkx==3.6.1
 numpy==2.5.3
 onnx==1.22.0
+onnx-ir==1.0.0
 onnxruntime==1.30.0
+onnxscript==0.7.2
 packaging==26.3
 pandas==3.0.5
 pillow==12.3.0

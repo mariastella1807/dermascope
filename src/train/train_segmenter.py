@@ -23,7 +23,8 @@ from src.config import load_config, resolve, set_seed
 from src.eval.metrics import bce_dice_loss, dice_coefficient, iou_score
 
 
-def run_epoch(model, loader, optimizer, scaler, device, cfg, train: bool):
+def run_epoch(model, loader, optimizer, scaler, device, cfg, train: bool, per_image: bool = False):
+    """Una pasada por `loader`. Con `per_image=True` devuelve tambien Dice e IoU de cada imagen."""
     model.train(train)
     total_loss, dice_values, iou_values, n = 0.0, [], [], 0
     threshold = cfg.postprocess.threshold
@@ -56,11 +57,12 @@ def run_epoch(model, loader, optimizer, scaler, device, cfg, train: bool):
             dice_values.extend(dice_coefficient(logits_fp32, masks, threshold).cpu().tolist())
             iou_values.extend(iou_score(logits_fp32, masks, threshold).cpu().tolist())
 
-    return (
+    summary = (
         total_loss / max(n, 1),
         sum(dice_values) / max(len(dice_values), 1),
         sum(iou_values) / max(len(iou_values), 1),
     )
+    return (*summary, dice_values, iou_values) if per_image else summary
 
 
 def main() -> None:
@@ -72,12 +74,19 @@ def main() -> None:
         help="Corrida de ablacion: identica pero sin el bloque de self-attention",
     )
     parser.add_argument("--tag", default=None, help="Sufijo del checkpoint")
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Verificacion rapida: 1 epoca con 32 imagenes por split. No sirve como resultado.",
+    )
     args = parser.parse_args()
 
     from src.data.datasets import make_dataloaders
     from src.models.segmenter import build_segmenter
 
     cfg = load_config(args.config)
+    if args.quick:
+        cfg["train"]["epochs"] = 1
     set_seed(cfg.seed)
 
     use_attention = not args.no_attention
@@ -85,7 +94,7 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Dispositivo: {device} | Self-attention: {use_attention} | tag: {tag}")
 
-    loaders, datasets = make_dataloaders(cfg, "segmentation")
+    loaders, datasets = make_dataloaders(cfg, "segmentation", limit=32 if args.quick else None)
     print(
         f"Imagenes con mascara -> train {len(datasets['train'])}, "
         f"val {len(datasets['val'])}, test {len(datasets['test'])}"
@@ -93,6 +102,12 @@ def main() -> None:
 
     model = build_segmenter(cfg, override_attention=use_attention).to(device)
     n_params = sum(p.numel() for p in model.parameters())
+
+    # Se vuelve a fijar la semilla DESPUES de construir el modelo. Construirlo con o sin
+    # el bloque de atencion consume distinta cantidad de numeros aleatorios; sin esto, el
+    # barajado de los lotes y las aumentaciones cambiarian entre las dos corridas de la
+    # ablacion, y la diferencia no seria atribuible solo al bloque.
+    set_seed(cfg.seed)
     print(f"Parametros: {n_params / 1e6:.2f} M")
 
     optimizer = torch.optim.AdamW(
@@ -114,6 +129,11 @@ def main() -> None:
     models_dir = resolve(cfg.paths.models)
     models_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = models_dir / f"segmenter_{tag}_best.pt"
+
+    if args.quick and ckpt_path.exists():
+        raise SystemExit(
+            f"Ya existe {ckpt_path}. --quick lo sobrescribiria con un modelo sin entrenar."
+        )
 
     history, best_dice, stale = [], -1.0, 0
     start = time.time()
@@ -164,7 +184,16 @@ def main() -> None:
 
     # Evaluacion final en test con el mejor checkpoint, no con los pesos de la ultima epoca.
     model.load_state_dict(torch.load(ckpt_path, map_location=device)["model"])
-    _, te_dice, te_iou = run_epoch(model, loaders["test"], optimizer, scaler, device, cfg, False)
+    _, te_dice, te_iou, dice_por_imagen, iou_por_imagen = run_epoch(
+        model, loaders["test"], optimizer, scaler, device, cfg, False, per_image=True
+    )
+    # Dice e IoU de cada imagen de test, en el orden del split (el loader de test no
+    # baraja): permite comparar las dos corridas de la ablacion imagen por imagen.
+    test_per_image = {
+        "image_id": datasets["test"].frame["image_id"].tolist(),
+        "dice": dice_por_imagen,
+        "iou": iou_por_imagen,
+    }
     print(f"\n=== Test ({tag}) === Dice={te_dice:.4f} IoU={te_iou:.4f}")
 
     results_dir = resolve(cfg.paths.reports) / "results"
@@ -180,6 +209,7 @@ def main() -> None:
                 "best_val_dice": best_dice,
                 "test_dice": te_dice,
                 "test_iou": te_iou,
+                "test_per_image": test_per_image,
                 "history": history,
             },
             indent=2,

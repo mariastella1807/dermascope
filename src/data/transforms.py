@@ -1,10 +1,10 @@
 """Pipelines de aumentacion con `torchvision.transforms.v2`.
 
-Criterio de diseno, la pregunta de la Semana 2: ¿la transformacion preserva la etiqueta?
+Criterio de diseno: ¿la transformacion preserva la etiqueta?
 
 - Volteos: si. Una imagen dermatoscopica no tiene orientacion canonica; un nevus volteado
-  sigue siendo un nevus. (Al contrario de los digitos de clase, donde un "2" volteado deja
-  de ser un "2".)
+  sigue siendo un nevus. (Al contrario, por ejemplo, de los digitos escritos a mano, donde
+  un "2" volteado deja de ser un "2".)
 - Recorte y escala moderados: si. Cambian el encuadre, no el diagnostico.
 - Color: solo con moderacion. El tono y la variacion cromatica son senal diagnostica real
   (la regla ABCD incluye el color), asi que un cambio fuerte de matiz destruye

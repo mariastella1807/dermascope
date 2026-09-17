@@ -106,14 +106,14 @@ class SEBlock(nn.Module):
 class SelfAttention2d(nn.Module):
     """Self-attention sobre un mapa de caracteristicas: la operacion central de ViT.
 
-    Es la formula vista en la Semana 3 con Vision Transformer:
+    Es la formula del Transformer (Vaswani et al., 2017) usada por Vision Transformer:
 
         Atencion(Q, K, V) = softmax( Q K^T / sqrt(d_k) ) V
 
     Lo unico que cambia es de donde salen los tokens. ViT corta la imagen en parches; aqui
     cada posicion del mapa que entrega `layer4` de ResNet-34 es un token. A 256px ese mapa
-    es de 8x8, asi que hay 64 tokens y el costo O(N^2) que se discutio en clase es
-    pequeno: 64 x 64 = 4.096 productos.
+    es de 8x8, asi que hay 64 tokens y el costo O(N^2) de la atencion es pequeno:
+    64 x 64 = 4.096 productos.
 
     Por que va en el cuello de botella de la U-Net: una convolucion 3x3 solo ve a sus
     vecinos, y la auto-atencion conecta cada posicion con todas las demas en una sola

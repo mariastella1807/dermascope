@@ -4,7 +4,8 @@
 > `reports/results/*.json` una vez entrenados los modelos. No dejar ninguna sin llenar
 > antes de la entrega: §4.7 exige métricas de desempeño en la model card.
 
-**Versión:** 0.1 (estructura) · **Fecha:** PENDIENTE · **Equipo:** PENDIENTE
+**Versión:** 0.1 (estructura) · **Fecha:** PENDIENTE
+**Integrantes:** Maria Stella Fuentes Diaz · Sergio Luis Castaño Rodríguez · Alejandro Galvez Cardenas · Joan Sebastian Mena Ortega
 **Institución:** Universidad Autónoma de Occidente — Maestría en IA y Ciencia de Datos
 
 ## 1. Descripción del problema
@@ -104,6 +105,11 @@ clasificador constante alcanza ~67% de accuracy sin haber aprendido nada.
 | --- | --- |
 | Sin CBAM | PENDIENTE |
 | Con CBAM | PENDIENTE |
+
+Calculada sobre todas las imágenes de test con Grad-CAM y la **máscara anotada**; el
+detalle por clase está en `reports/results/localizacion_atencion_por_clase.csv`. El
+porcentaje que muestra el aplicativo es otra medida: usa SmoothGrad-CAM y la **máscara
+predicha** por el segmentador, así que ambos números no deben compararse.
 
 ### 4.4 Optimización
 

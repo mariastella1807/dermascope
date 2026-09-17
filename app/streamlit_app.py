@@ -181,9 +181,11 @@ with tab_attn:
         "Masa de atencion dentro de la lesion",
         f"{result.attention_in_lesion:.1%}",
         help=(
-            "Fraccion del mapa de Grad-CAM que cae dentro de la mascara segmentada. "
-            "Un valor alto indica que el clasificador decidio mirando la lesion y no "
-            "artefactos del fondo como vello, burbujas o el vineteado del dermatoscopio."
+            "Fraccion del mapa de SmoothGrad-CAM que cae dentro de la mascara PREDICHA por "
+            "el segmentador. Un valor alto indica que el clasificador decidio mirando la "
+            "lesion y no artefactos del fondo como vello, burbujas o el vineteado del "
+            "dermatoscopio. No es comparable con la tabla del informe, que usa Grad-CAM y "
+            "la mascara anotada del dataset."
         ),
     )
     if result.attention_in_lesion < 0.5:

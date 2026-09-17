@@ -3,6 +3,8 @@
 Proyecto 2 de Visión Computacional con Deep Learning
 Maestría en Inteligencia Artificial y Ciencia de Datos — Universidad Autónoma de Occidente
 
+**Integrantes:** Maria Stella Fuentes Diaz · Sergio Luis Castaño Rodríguez · Alejandro Galvez Cardenas · Joan Sebastian Mena Ortega
+
 ## Problema
 
 Sistema de apoyo al triaje dermatoscópico. Dada una imagen dermatoscópica, el sistema:
@@ -49,10 +51,10 @@ Ver `scripts/download_data.md` para el procedimiento de descarga y la trazabilid
 | Tarea | Modelo | Justificación |
 | --- | --- | --- |
 | Clasificación | ResNet-34 (ImageNet) + CBAM | `layer1..4` son `nn.Sequential`, así que CBAM se integra *dentro* del backbone; cuantiza limpio en INT8 |
-| Segmentación | U-Net con encoder ResNet-34 (ImageNet) + self-attention | U-Net y ResNet se ven en clase; el bloque de self-attention es la operación de ViT (§4.3) |
+| Segmentación | U-Net con encoder ResNet-34 (ImageNet) + self-attention | Decoder con skip connections para bordes precisos; el bloque de self-attention (operación del Transformer) aporta contexto global (§4.3) |
 
-Todo el proyecto usa solo herramientas vistas en el curso: PyTorch, `torchvision`
-(modelos y `transforms.v2`), scikit-learn, matplotlib, ONNX y Streamlit.
+El proyecto usa un conjunto reducido de dependencias: PyTorch, `torchvision` (modelos y
+`transforms.v2`), scikit-learn, scipy, matplotlib, ONNX y Streamlit.
 `scripts/smoke_test.py` verifica que no se cuele ninguna otra librería.
 
 ## Mecanismos de atención (§4.3)

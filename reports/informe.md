@@ -1,5 +1,9 @@
 # Informe — DermaScope
 
+Proyecto 2 · Visión Computacional con Deep Learning — Maestría en Inteligencia Artificial y Ciencia de Datos, Universidad Autónoma de Occidente
+
+**Integrantes:** Maria Stella Fuentes Diaz · Sergio Luis Castaño Rodríguez · Alejandro Galvez Cardenas · Joan Sebastian Mena Ortega
+
 > Documento breve exigido por §5: problemática abordada, decisiones de arquitectura y
 > proceso de optimización, incluyendo las tablas de tiempos CPU vs GPU.
 > Estructura para llenar a medida que avanzan los experimentos.
@@ -26,9 +30,9 @@ pregunta en la sustentación.
 | Decisión | Alternativa descartada | Razón |
 | --- | --- | --- |
 | ResNet-34 como backbone | EfficientNet-B0 | `layer1..4` son `nn.Sequential`, así que CBAM se integra dentro del backbone y no detrás del pooling; además cuantiza a INT8 sin sorpresas |
-| U-Net + bloque de self-attention | SegFormer (transformer completo) | U-Net y ViT se vieron en clase; además la ablación con/sin bloque cambia un solo factor, mientras que SegFormer contra U-Net cambia toda la arquitectura |
+| U-Net + bloque de self-attention | SegFormer (transformer completo) | La ablación con y sin el bloque cambia un solo factor, mientras que comparar SegFormer contra U-Net cambia toda la arquitectura; además mantiene el mismo encoder que el clasificador |
 | Segmentación a 256px | 512px | Las lesiones ocupan buena parte de la imagen y el entrenamiento es ~4 veces más rápido |
-| `ReduceLROnPlateau` | Coseno con warmup | Es el programador usado en clase y reacciona a la curva de validación real |
+| `ReduceLROnPlateau` | Coseno con warmup | Reacciona a la curva de validación real en lugar de seguir un cronograma fijo |
 | Macro-F1 como métrica de selección | Accuracy | Con `nv` al 67%, la accuracy premia al clasificador constante |
 | Pérdida ponderada por clase | Oversampling | No duplica imágenes ni altera la distribución de las aumentaciones |
 | BCE + Dice | BCE sola | La BCE sola sesga hacia el fondo, que domina el área en lesiones pequeñas |

@@ -68,12 +68,19 @@ def main() -> None:
         help="Corrida de ablacion: identica pero sin el bloque de atencion",
     )
     parser.add_argument("--tag", default=None, help="Sufijo del checkpoint")
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Verificacion rapida: 1 epoca con 32 imagenes por split. No sirve como resultado.",
+    )
     args = parser.parse_args()
 
     from src.data.datasets import make_dataloaders
     from src.models.classifier import build_classifier
 
     cfg = load_config(args.config)
+    if args.quick:
+        cfg["train"]["epochs"] = 1
     set_seed(cfg.seed)
 
     use_cbam = not args.no_cbam
@@ -81,11 +88,17 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Dispositivo: {device} | CBAM: {use_cbam} | tag: {tag}")
 
-    loaders, datasets = make_dataloaders(cfg, "classification")
+    loaders, datasets = make_dataloaders(cfg, "classification", limit=32 if args.quick else None)
     class_names = list(cfg.classes)
 
     model = build_classifier(cfg, override_cbam=use_cbam).to(device)
     n_params = sum(p.numel() for p in model.parameters())
+
+    # Se vuelve a fijar la semilla DESPUES de construir el modelo. Construirlo con o sin
+    # el bloque de atencion consume distinta cantidad de numeros aleatorios; sin esto, el
+    # barajado de los lotes y las aumentaciones cambiarian entre las dos corridas de la
+    # ablacion, y la diferencia no seria atribuible solo al bloque.
+    set_seed(cfg.seed)
     print(f"Parametros: {n_params / 1e6:.2f} M")
 
     if cfg.train.class_weights == "balanced":
@@ -117,6 +130,11 @@ def main() -> None:
     models_dir = resolve(cfg.paths.models)
     models_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = models_dir / f"classifier_{tag}_best.pt"
+
+    if args.quick and ckpt_path.exists():
+        raise SystemExit(
+            f"Ya existe {ckpt_path}. --quick lo sobrescribiria con un modelo sin entrenar."
+        )
 
     history: list[dict] = []
     best_metric, epochs_without_improvement = -1.0, 0
@@ -177,6 +195,15 @@ def main() -> None:
     )
     test_m = classification_metrics(yte, ype, class_names)
 
+    # Prediccion de cada imagen de test, en el mismo orden que el split (el loader de test
+    # no baraja). Permite comparar las dos corridas de la ablacion imagen por imagen y
+    # estimar si la diferencia supera al azar, sin tener que volver a entrenar.
+    test_predictions = {
+        "image_id": datasets["test"].frame["image_id"].tolist(),
+        "y_true": yte.tolist(),
+        "y_pred": ype.tolist(),
+    }
+
     print("\n=== Test ===")
     print(test_m["report"])
 
@@ -190,6 +217,7 @@ def main() -> None:
         "train_minutes": (time.time() - start) / 60,
         "best_val_macro_f1": best_metric,
         "test": {k: v for k, v in test_m.items() if k != "report"},
+        "test_predictions": test_predictions,
         "history": history,
     }
     (results_dir / f"classification_{tag}.json").write_text(

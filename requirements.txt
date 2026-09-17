@@ -1,7 +1,7 @@
 # Entorno: Python 3.11 o 3.12 (PyTorch aun no publica ruedas estables para 3.14).
 # En Windows sin GPU, pip instala la rueda de CPU por defecto. En Colab/Kaggle torch ya viene.
 #
-# Solo librerias vistas en clase. scipy se usa para una sola llamada (ndimage.label, la
+# Conjunto reducido de dependencias. scipy se usa para una sola llamada (ndimage.label, la
 # region conectada mas grande de la mascara) y ya viene como dependencia de scikit-learn.
 
 torch>=2.2
@@ -21,6 +21,7 @@ matplotlib>=3.8
 # Optimizacion (§4.4)
 onnx>=1.16
 onnxruntime>=1.17
+onnxscript>=0.2          # exportador ONNX de las versiones recientes de PyTorch
 
 # Despliegue (§4.6)
 streamlit>=1.33

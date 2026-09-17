@@ -45,14 +45,18 @@ class DermaClassifier(nn.Module):
         self.use_cbam = use_cbam
         self.net = ctor(weights=weights if pretrained else None)
 
-        if use_cbam:
-            self._inject_cbam(cbam_stages, cbam_reduction, cbam_spatial_kernel)
-
+        # La cabeza se crea ANTES que CBAM. Inicializar CBAM consume numeros aleatorios;
+        # si fuera primero, la cabeza arrancaria con pesos distintos en la corrida con y
+        # sin CBAM, y la ablacion mezclaria el efecto del bloque con el de la
+        # inicializacion. Asi, con la misma semilla, todo lo comun es identico.
         in_features = self.net.fc.in_features
         self.net.fc = nn.Sequential(
             nn.Dropout(dropout),
             nn.Linear(in_features, num_classes),
         )
+
+        if use_cbam:
+            self._inject_cbam(cbam_stages, cbam_reduction, cbam_spatial_kernel)
 
     def _inject_cbam(
         self, stages: tuple[str, ...], reduction: int, spatial_kernel: int
