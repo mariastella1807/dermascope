@@ -10,6 +10,9 @@ entrenamiento.
 
 El checkpoint se selecciona por `val_macro_f1`, no por accuracy: con nv al 67% del
 dataset, la accuracy de validacion sube sola sin que el modelo aprenda las clases raras.
+
+Reanudable: al final de cada epoca se guarda `classifier_<tag>_last.pt`. Si la sesion se
+interrumpe, volver a lanzar el mismo comando continua desde la ultima epoca completada.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ import torch.nn as nn
 
 from src.config import load_config, resolve, set_seed
 from src.eval.metrics import class_weights_balanced, classification_metrics
+from src.train.checkpointing import cargar_estado, guardar_estado
 
 
 def run_epoch(model, loader, criterion, optimizer, scaler, device, train: bool):
@@ -136,11 +140,24 @@ def main() -> None:
             f"Ya existe {ckpt_path}. --quick lo sobrescribiria con un modelo sin entrenar."
         )
 
+    last_path = models_dir / f"classifier_{tag}_last.pt"
     history: list[dict] = []
     best_metric, epochs_without_improvement = -1.0, 0
+    start_epoch, minutos_previos, detenido = 1, 0.0, False
     start = time.time()
 
-    for epoch in range(1, cfg.train.epochs + 1):
+    estado = None if args.quick else cargar_estado(
+        last_path, model=model, optimizer=optimizer, scheduler=scheduler, scaler=scaler, device=device
+    )
+    if estado is not None:
+        history, best_metric = estado["history"], estado["best_metric"]
+        epochs_without_improvement, detenido = estado["stale"], estado["detenido"]
+        start_epoch, minutos_previos = estado["epoch"] + 1, estado["minutos"]
+        print(f"Reanudando: epocas 1-{estado['epoch']} ya completadas, mejor macro-F1 {best_metric:.4f}")
+
+    for epoch in range(start_epoch, cfg.train.epochs + 1):
+        if detenido:
+            break
         train_loss, ytr, ypr = run_epoch(
             model, loaders["train"], criterion, optimizer, scaler, device, True
         )
@@ -186,7 +203,13 @@ def main() -> None:
             epochs_without_improvement += 1
             if epochs_without_improvement >= cfg.train.early_stopping_patience:
                 print(f"Early stopping en la epoca {epoch}")
-                break
+                detenido = True
+
+        guardar_estado(
+            last_path, model=model, optimizer=optimizer, scheduler=scheduler, scaler=scaler,
+            epoch=epoch, best_metric=best_metric, stale=epochs_without_improvement,
+            history=history, minutos=minutos_previos + (time.time() - start) / 60, detenido=detenido,
+        )
 
     # Evaluacion final en test con el mejor checkpoint, no con los pesos de la ultima epoca.
     model.load_state_dict(torch.load(ckpt_path, map_location=device)["model"])
@@ -214,7 +237,7 @@ def main() -> None:
         "use_cbam": use_cbam,
         "n_params": n_params,
         "checkpoint_mb": ckpt_path.stat().st_size / 1e6,
-        "train_minutes": (time.time() - start) / 60,
+        "train_minutes": minutos_previos + (time.time() - start) / 60,
         "best_val_macro_f1": best_metric,
         "test": {k: v for k, v in test_m.items() if k != "report"},
         "test_predictions": test_predictions,
@@ -224,6 +247,8 @@ def main() -> None:
         json.dumps(payload, indent=2), encoding="utf-8"
     )
     print(f"Metricas en {results_dir / f'classification_{tag}.json'}")
+    # Entrenamiento terminado y resultados escritos: el estado para reanudar ya no sirve.
+    last_path.unlink(missing_ok=True)
     print(
         "\nPara la ablacion de §4.3, compara este archivo con el de la otra corrida "
         "usando: python -m src.eval.compare_ablation"

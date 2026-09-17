@@ -9,6 +9,9 @@ dos corridas es atribuible al bloque de self-attention:
 
 Se usan las 10.015 imagenes con mascara, con el mismo reparto por `lesion_id` que la
 tarea de clasificacion.
+
+Reanudable: al final de cada epoca se guarda `segmenter_<tag>_last.pt`. Si la sesion se
+interrumpe, volver a lanzar el mismo comando continua desde la ultima epoca completada.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ import torch
 
 from src.config import load_config, resolve, set_seed
 from src.eval.metrics import bce_dice_loss, dice_coefficient, iou_score
+from src.train.checkpointing import cargar_estado, guardar_estado
 
 
 def run_epoch(model, loader, optimizer, scaler, device, cfg, train: bool, per_image: bool = False):
@@ -135,10 +139,23 @@ def main() -> None:
             f"Ya existe {ckpt_path}. --quick lo sobrescribiria con un modelo sin entrenar."
         )
 
+    last_path = models_dir / f"segmenter_{tag}_last.pt"
     history, best_dice, stale = [], -1.0, 0
+    start_epoch, minutos_previos, detenido = 1, 0.0, False
     start = time.time()
 
-    for epoch in range(1, cfg.train.epochs + 1):
+    estado = None if args.quick else cargar_estado(
+        last_path, model=model, optimizer=optimizer, scheduler=scheduler, scaler=scaler, device=device
+    )
+    if estado is not None:
+        history, best_dice = estado["history"], estado["best_metric"]
+        stale, detenido = estado["stale"], estado["detenido"]
+        start_epoch, minutos_previos = estado["epoch"] + 1, estado["minutos"]
+        print(f"Reanudando: epocas 1-{estado['epoch']} ya completadas, mejor Dice {best_dice:.4f}")
+
+    for epoch in range(start_epoch, cfg.train.epochs + 1):
+        if detenido:
+            break
         tr_loss, tr_dice, _ = run_epoch(
             model, loaders["train"], optimizer, scaler, device, cfg, True
         )
@@ -180,7 +197,13 @@ def main() -> None:
             stale += 1
             if stale >= cfg.train.early_stopping_patience:
                 print(f"Early stopping en la epoca {epoch}")
-                break
+                detenido = True
+
+        guardar_estado(
+            last_path, model=model, optimizer=optimizer, scheduler=scheduler, scaler=scaler,
+            epoch=epoch, best_metric=best_dice, stale=stale,
+            history=history, minutos=minutos_previos + (time.time() - start) / 60, detenido=detenido,
+        )
 
     # Evaluacion final en test con el mejor checkpoint, no con los pesos de la ultima epoca.
     model.load_state_dict(torch.load(ckpt_path, map_location=device)["model"])
@@ -205,7 +228,7 @@ def main() -> None:
                 "use_self_attention": use_attention,
                 "n_params": n_params,
                 "checkpoint_mb": ckpt_path.stat().st_size / 1e6,
-                "train_minutes": (time.time() - start) / 60,
+                "train_minutes": minutos_previos + (time.time() - start) / 60,
                 "best_val_dice": best_dice,
                 "test_dice": te_dice,
                 "test_iou": te_iou,
@@ -217,6 +240,8 @@ def main() -> None:
         encoding="utf-8",
     )
     print(f"Metricas en {results_dir / f'segmentation_{tag}.json'}")
+    # Entrenamiento terminado y resultados escritos: el estado para reanudar ya no sirve.
+    last_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
