@@ -2,9 +2,11 @@
 
 Comprueba que todo lo que el proyecto importa existe y que los dos modelos se
 construyen y producen tensores de la forma esperada. Correr esto despues de crear el
-entorno y cada vez que se actualicen dependencias: detecta cambios de API en
-transformers, albumentations o torch antes de que aparezcan a mitad de un
-entrenamiento en Colab.
+entorno y cada vez que se actualicen dependencias: detecta cambios de API en torch o
+torchvision antes de que aparezcan a mitad de un entrenamiento en Colab.
+
+La ultima comprobacion verifica que el proyecto no importe librerias que no se han visto
+en clase (albumentations, opencv, transformers, segmentation-models-pytorch).
 
 Uso:
     .venv\\Scripts\\python.exe scripts/smoke_test.py
@@ -38,15 +40,15 @@ def check(name: str):
 
 @check("versiones")
 def _versions() -> str:
-    import albumentations
     import numpy
     import pandas
+    import scipy
     import torch
-    import transformers
+    import torchvision
 
     return (
-        f"torch {torch.__version__} | transformers {transformers.__version__} | "
-        f"albumentations {albumentations.__version__} | pandas {pandas.__version__} | "
+        f"torch {torch.__version__} | torchvision {torchvision.__version__} | "
+        f"scipy {scipy.__version__} | pandas {pandas.__version__} | "
         f"numpy {numpy.__version__} | cuda {torch.cuda.is_available()}"
     )
 
@@ -64,25 +66,45 @@ def _config() -> str:
 @check("transforms")
 def _transforms() -> str:
     import numpy as np
+    import torch
+    from PIL import Image
+    from torchvision import tv_tensors
 
     from src.config import load_config
     from src.data import transforms as T
 
     cls_cfg = load_config("configs/classification.yaml")
     seg_cfg = load_config("configs/segmentation.yaml")
-    image = np.random.randint(0, 255, (450, 600, 3), dtype=np.uint8)
-    mask = (np.random.rand(450, 600) > 0.5).astype(np.float32)
+    array = np.random.randint(0, 255, (450, 600, 3), dtype=np.uint8)
 
-    out = T.classification_train_transform(cls_cfg)(image=image)["image"]
     size = cls_cfg.data.image_size
+    out = T.classification_train_transform(cls_cfg)(Image.fromarray(array))
     assert tuple(out.shape) == (3, size, size), f"forma inesperada: {out.shape}"
+    assert out.dtype == torch.float32
+    # Streamlit entrega arreglos NumPy: la transformacion de evaluacion debe aceptarlos.
+    assert tuple(T.classification_eval_transform(cls_cfg)(array).shape) == (3, size, size)
 
-    T.classification_eval_transform(cls_cfg)(image=image)
-    seg_out = T.segmentation_train_transform(seg_cfg)(image=image, mask=mask)
+    # Imagen con la mitad izquierda blanca y mascara que marca esa misma mitad. Despues de
+    # rotar, escalar y voltear al azar, los pixeles blancos deben seguir coincidiendo con
+    # la mascara: si no, la geometria se aplico distinto a cada una.
     seg_size = seg_cfg.data.image_size
-    assert tuple(seg_out["image"].shape) == (3, seg_size, seg_size)
-    assert seg_out["mask"].shape[-2:] == (seg_size, seg_size)
-    return f"clasificacion {size}px, segmentacion {seg_size}px, mascara alineada"
+    half = np.zeros((450, 600, 3), dtype=np.uint8)
+    half[:, :300] = 255
+    mask = torch.zeros(450, 600, dtype=torch.uint8)
+    mask[:, :300] = 1
+    mask = tv_tensors.Mask(mask)
+    seg_tf = T.segmentation_train_transform(seg_cfg)
+    worst = 1.0
+    for _ in range(10):
+        img_t, mask_t = seg_tf(Image.fromarray(half), mask)
+        assert tuple(img_t.shape) == (3, seg_size, seg_size)
+        assert tuple(mask_t.shape) == (seg_size, seg_size)
+        assert set(mask_t.unique().tolist()) <= {0, 1}, "la mascara dejo de ser binaria"
+        bright = img_t.mean(dim=0) > 0.5
+        agreement = (bright == mask_t.bool()).float().mean().item()
+        worst = min(worst, agreement)
+    assert worst > 0.95, f"imagen y mascara desalineadas ({worst:.1%})"
+    return f"clasificacion {size}px, segmentacion {seg_size}px, alineacion minima {worst:.1%}"
 
 
 @check("clasificador + CBAM")
@@ -192,25 +214,26 @@ def _metrics() -> str:
     )
 
 
-@check("segmentador SegFormer")
-def _segformer() -> str:
+@check("self-attention")
+def _self_attention() -> str:
     import torch
 
-    from src.config import load_config
-    from src.models.segmenter import build_segmenter
+    from src.models.attention import SelfAttention2d
 
-    cfg = load_config("configs/segmentation.yaml")
-    model = build_segmenter(cfg).eval()
-    size = cfg.data.image_size
-    x = torch.randn(1, 3, size, size)
-    with torch.no_grad():
-        y = model(x)
-    assert tuple(y.shape) == (1, 1, size, size), f"logits: {y.shape}"
-    n = sum(p.numel() for p in model.parameters())
-    return f"salida {tuple(y.shape)}, {n / 1e6:.2f}M params (descarga pesos de HuggingFace)"
+    torch.manual_seed(0)
+    block = SelfAttention2d(channels=32, n_tokens=16)
+    x = torch.randn(2, 32, 4, 4)
+    y = block(x)
+    assert y.shape == x.shape, f"forma: {y.shape}"
+    # La proyeccion de salida arranca en ceros: al inicio el bloque es la identidad.
+    assert torch.allclose(y, x), "el bloque sin entrenar deberia devolver la entrada"
+    weights = block.last_attention
+    assert tuple(weights.shape) == (2, 16, 16), f"atencion: {weights.shape}"
+    assert torch.allclose(weights.sum(dim=-1), torch.ones(2, 16)), "las filas no suman 1"
+    return "softmax(QK^T/sqrt(d))V: filas suman 1, identidad al inicio"
 
 
-@check("baseline U-Net")
+@check("U-Net con y sin self-attention")
 def _unet() -> str:
     import torch
 
@@ -218,14 +241,41 @@ def _unet() -> str:
     from src.models.segmenter import build_segmenter
 
     cfg = load_config("configs/segmentation.yaml")
-    cfg["model"]["arch"] = "unet"
-    model = build_segmenter(cfg).eval()
     size = cfg.data.image_size
-    with torch.no_grad():
-        y = model(torch.randn(1, 3, size, size))
-    assert tuple(y.shape) == (1, 1, size, size), f"logits: {y.shape}"
-    n = sum(p.numel() for p in model.parameters())
-    return f"salida {tuple(y.shape)}, {n / 1e6:.2f}M params"
+    x = torch.randn(1, 3, size, size)
+    counts = {}
+    for use_attention in (True, False):
+        model = build_segmenter(cfg, override_attention=use_attention).eval()
+        with torch.no_grad():
+            y = model(x)
+        assert tuple(y.shape) == (1, 1, size, size), f"logits: {y.shape}"
+        counts[use_attention] = sum(p.numel() for p in model.parameters())
+        groups = model.param_groups(1e-4, 10.0)
+        assert len(groups) == 2 and all(g["params"] for g in groups), "param_groups vacio"
+    assert counts[True] > counts[False], "el bloque de atencion no anadio parametros"
+    return (
+        f"salida {tuple(y.shape)}, sin atencion {counts[False] / 1e6:.2f}M -> "
+        f"con atencion {counts[True] / 1e6:.2f}M"
+    )
+
+
+@check("sin librerias fuera del curso")
+def _no_external_libraries() -> str:
+    import importlib
+    import pkgutil
+
+    import src
+
+    # Importa todos los modulos del proyecto y del app, y revisa que ninguno haya
+    # arrastrado una libreria que no se vio en clase.
+    for module in pkgutil.walk_packages(src.__path__, prefix="src."):
+        importlib.import_module(module.name)
+    importlib.import_module("app.inference")
+
+    forbidden = ["albumentations", "cv2", "transformers", "segmentation_models_pytorch"]
+    loaded = [name for name in forbidden if name in sys.modules]
+    assert not loaded, f"se importaron: {loaded}"
+    return "ninguna de: " + ", ".join(forbidden)
 
 
 def main() -> int:

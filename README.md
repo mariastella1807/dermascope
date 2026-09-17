@@ -49,8 +49,11 @@ Ver `scripts/download_data.md` para el procedimiento de descarga y la trazabilid
 | Tarea | Modelo | Justificación |
 | --- | --- | --- |
 | Clasificación | ResNet-34 (ImageNet) + CBAM | `layer1..4` son `nn.Sequential`, así que CBAM se integra *dentro* del backbone; cuantiza limpio en INT8 |
-| Segmentación | SegFormer-B0 (`nvidia/mit-b0`) | Self-attention nativo (§4.3); encoder jerárquico liviano |
-| Baseline segmentación | U-Net con encoder ResNet-34 | Contraste puramente convolucional para aislar el aporte del self-attention |
+| Segmentación | U-Net con encoder ResNet-34 (ImageNet) + self-attention | U-Net y ResNet se ven en clase; el bloque de self-attention es la operación de ViT (§4.3) |
+
+Todo el proyecto usa solo herramientas vistas en el curso: PyTorch, `torchvision`
+(modelos y `transforms.v2`), scikit-learn, matplotlib, ONNX y Streamlit.
+`scripts/smoke_test.py` verifica que no se cuele ninguna otra librería.
 
 ## Mecanismos de atención (§4.3)
 
@@ -58,8 +61,9 @@ Cada mecanismo tiene una comparación propia, no una sola ablación compartida:
 
 - **CBAM** — inyectado tras `layer3` y `layer4` del clasificador. Ablación con/sin bloque,
   mismo split y misma semilla. Se compara accuracy, macro-F1 y tamaño del modelo.
-- **Self-attention** — SegFormer-B0 frente al baseline U-Net, mismos datos y mismo
-  presupuesto de épocas. Se compara Dice e IoU.
+- **Self-attention** — bloque `softmax(QKᵀ/√dₖ)V` en el cuello de botella de la U-Net
+  (8x8 = 64 tokens a 256px). Ablación con/sin bloque, mismo split y misma semilla. Se
+  compara Dice e IoU.
 - **Grad-CAM** — implementado en `src/explain/gradcam.py` (sin dependencias externas, para
   poder explicarlo en la sustentación). Se contrastan los mapas del modelo con y sin CBAM.
 
@@ -67,7 +71,7 @@ Cada mecanismo tiene una comparación propia, no una sola ablación compartida:
 
 ```
 configs/          Hiperparámetros y rutas (YAML, sin valores mágicos en el código)
-data/raw/         HAM10000 + máscaras ISIC 2018 Task 1 (no versionado)
+data/raw/         HAM10000 + máscaras de Tschandl (no versionado)
 data/processed/   Splits generados, agrupados por lesion_id
 src/data/         Construcción de splits, Datasets y transforms
 src/models/       CBAM, clasificador, segmentador
@@ -102,7 +106,7 @@ versionados** porque los overrides locales no viajan al repositorio.
 | --- | --- |
 | `paths.local.yaml` | Dataset y checkpoints fuera de OneDrive |
 | `classification.local.yaml` | Menos workers en máquinas con poca RAM |
-| `segmentation.local.yaml` | Batch y workers reducidos para 512px en local |
+| `segmentation.local.yaml` | Batch y workers reducidos en local |
 
 Correr `scripts/smoke_test.py` tras cualquier cambio de dependencias: detecta cambios de
 API antes de que aparezcan a mitad de un entrenamiento en Colab.
@@ -114,6 +118,7 @@ python -m src.data.build_splits --config configs/paths.yaml
 python -m src.train.train_classifier --config configs/classification.yaml
 python -m src.train.train_classifier --config configs/classification.yaml --no-cbam   # ablación
 python -m src.train.train_segmenter  --config configs/segmentation.yaml
+python -m src.train.train_segmenter  --config configs/segmentation.yaml --no-attention  # ablación
 python -m src.optimize.quantize      --config configs/classification.yaml
 python -m src.eval.benchmark         --device cpu
 python -m src.eval.benchmark         --device cuda

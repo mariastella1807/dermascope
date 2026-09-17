@@ -1,24 +1,21 @@
 # Entorno: Python 3.11 o 3.12 (PyTorch aun no publica ruedas estables para 3.14).
 # En Windows sin GPU, pip instala la rueda de CPU por defecto. En Colab/Kaggle torch ya viene.
+#
+# Solo librerias vistas en clase. scipy se usa para una sola llamada (ndimage.label, la
+# region conectada mas grande de la mascara) y ya viene como dependencia de scikit-learn.
 
 torch>=2.2
-torchvision>=0.17
+torchvision>=0.17           # modelos preentrenados y transforms.v2 (imagen + mascara)
 
-# Segmentacion
-transformers>=4.40          # SegformerForSemanticSegmentation (nvidia/mit-b0)
-segmentation-models-pytorch>=0.3.3   # baseline U-Net convolucional
-
-# Datos y aumentacion
+# Datos
 numpy>=1.26
 pandas>=2.1
 pillow>=10.2
-opencv-python-headless>=4.9
-albumentations>=1.4
+scipy>=1.11
 
 # Metricas y utilidades
 scikit-learn>=1.4
 pyyaml>=6.0
-tqdm>=4.66
 matplotlib>=3.8
 
 # Optimizacion (§4.4)

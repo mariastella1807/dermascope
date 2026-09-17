@@ -65,14 +65,14 @@ Detalle completo del proceso en `scripts/download_data.md`.
 
 | Tarea | Modelo | Preentrenamiento | Parámetros |
 | --- | --- | --- | --- |
-| Clasificación (§4.1) | ResNet-34 + CBAM en `layer3` y `layer4` | ImageNet-1k | PENDIENTE |
-| Segmentación (§4.2) | SegFormer-B0 (`nvidia/mit-b0`) | ImageNet-1k | PENDIENTE |
-| Baseline segmentación | U-Net, encoder ResNet-34 | ImageNet-1k | PENDIENTE |
+| Clasificación (§4.1) | ResNet-34 + CBAM en `layer3` y `layer4` | ImageNet-1k | 21,33 M |
+| Segmentación (§4.2) | U-Net, encoder ResNet-34, self-attention en el cuello de botella | ImageNet-1k (encoder) | 25,61 M |
 
 **Mecanismos de atención (§4.3).**
 
 - **CBAM** (atención de canal + espacial) integrado en el backbone del clasificador.
-- **Self-attention** aportado por el encoder MiT de SegFormer en el segmentador.
+- **Self-attention** (`softmax(QKᵀ/√dₖ)V`, la operación de ViT) sobre los 64 tokens del
+  mapa de 8x8 que sale del encoder de la U-Net.
 - **SmoothGrad-CAM** como herramienta de interpretabilidad, mostrada en el aplicativo.
 
 ## 4. Métricas de desempeño
@@ -83,8 +83,8 @@ Todas medidas en el conjunto de prueba, agrupado por `lesion_id`.
 
 | Modelo | Accuracy | Balanced acc. | Macro-F1 | Params |
 | --- | --- | --- | --- | --- |
-| ResNet-34 sin CBAM | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE |
-| ResNet-34 + CBAM | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE |
+| ResNet-34 sin CBAM | PENDIENTE | PENDIENTE | PENDIENTE | 21,29 M |
+| ResNet-34 + CBAM | PENDIENTE | PENDIENTE | PENDIENTE | 21,33 M |
 
 F1 por clase: PENDIENTE — copiar de `reports/results/ablacion_cbam.csv`.
 
@@ -95,8 +95,8 @@ clasificador constante alcanza ~67% de accuracy sin haber aprendido nada.
 
 | Modelo | Dice | IoU | Params |
 | --- | --- | --- | --- |
-| U-Net (convolucional) | PENDIENTE | PENDIENTE | PENDIENTE |
-| SegFormer-B0 (self-attention) | PENDIENTE | PENDIENTE | PENDIENTE |
+| U-Net sin self-attention | PENDIENTE | PENDIENTE | 24,52 M |
+| U-Net + self-attention | PENDIENTE | PENDIENTE | 25,61 M |
 
 ### 4.3 Localización de la atención
 

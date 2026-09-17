@@ -168,7 +168,8 @@ def main() -> None:
     targets = [
         ("classifier_cbam", build_classifier(cls_cfg, override_cbam=True), cls_cfg.data.image_size),
         ("classifier_nocbam", build_classifier(cls_cfg, override_cbam=False), cls_cfg.data.image_size),
-        ("segmenter", build_segmenter(seg_cfg), seg_cfg.data.image_size),
+        ("segmenter_attn", build_segmenter(seg_cfg, override_attention=True), seg_cfg.data.image_size),
+        ("segmenter_noattn", build_segmenter(seg_cfg, override_attention=False), seg_cfg.data.image_size),
     ]
 
     for name, model, size in targets:

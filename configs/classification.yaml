@@ -25,25 +25,25 @@ train:
   lr: 3.0e-4
   head_lr_multiplier: 10.0    # cabeza nueva aprende mas rapido que el backbone preentrenado
   weight_decay: 1.0e-4
-  scheduler: cosine
-  warmup_epochs: 2
+  # ReduceLROnPlateau sobre val_loss, con los valores del taller de la Semana 3:
+  # si la perdida de validacion no mejora en 2 epocas, el lr se reduce a la mitad.
+  plateau_factor: 0.5
+  plateau_patience: 2
   # Desbalance nv:df ~ 58:1. Pesos inversos a la frecuencia, calculados en runtime.
   class_weights: balanced
-  label_smoothing: 0.05
-  amp: true
+  amp: true                   # precision mixta en GPU (float16), mas rapido en la T4
   early_stopping_patience: 6
   monitor: val_macro_f1       # no val_accuracy: el desbalance la hace enganosa
 
 augment:
+  # Las imagenes dermatoscopicas no tienen orientacion canonica: voltear preserva la
+  # etiqueta. El color se toca con cuidado porque el tono es senal diagnostica real.
   hflip: 0.5
   vflip: 0.5
-  rotate90: 0.5
-  brightness_contrast: 0.3
-  # Las imagenes dermatoscopicas no tienen orientacion canonica, asi que las
-  # simetrias completas son validas. El color se toca con cuidado: el tono es
-  # senal diagnostica real.
-  hue_shift_limit: 8
-  saturation_shift_limit: 12
+  brightness: 0.15
+  contrast: 0.15
+  saturation: 0.1
+  hue: 0.02                   # fraccion del circulo de color: +-7 grados
 
 optimize:
   # §4.4 — cuantizacion estatica INT8 con ONNX Runtime

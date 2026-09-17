@@ -50,8 +50,8 @@ class DermaPipeline:
         self,
         cls_config: str = "configs/classification.yaml",
         seg_config: str = "configs/segmentation.yaml",
-        cls_checkpoint: str = "models/classifier_cbam_best.pt",
-        seg_checkpoint: str = "models/segmenter_segformer_best.pt",
+        cls_checkpoint: str | None = None,
+        seg_checkpoint: str | None = None,
         device: str | None = None,
     ) -> None:
         self.cls_cfg = load_config(cls_config)
@@ -62,13 +62,22 @@ class DermaPipeline:
         self.class_names = list(self.cls_cfg.classes)
         self.class_names_es = dict(self.cls_cfg.class_names_es)
 
-        self.classifier = self._load(build_classifier(self.cls_cfg), cls_checkpoint)
-        self.segmenter = self._load(build_segmenter(self.seg_cfg), seg_checkpoint)
+        # Por defecto, los modelos con atencion dentro de paths.models, que los overrides
+        # locales pueden mover fuera del repositorio.
+        models_dir = resolve(self.cls_cfg.paths.models)
+        self.classifier = self._load(
+            build_classifier(self.cls_cfg),
+            cls_checkpoint or models_dir / "classifier_cbam_best.pt",
+        )
+        self.segmenter = self._load(
+            build_segmenter(self.seg_cfg),
+            seg_checkpoint or models_dir / "segmenter_attn_best.pt",
+        )
 
         self.cls_tf = T.classification_eval_transform(self.cls_cfg)
         self.seg_tf = T.segmentation_eval_transform(self.seg_cfg)
 
-    def _load(self, model: torch.nn.Module, checkpoint: str) -> torch.nn.Module:
+    def _load(self, model: torch.nn.Module, checkpoint: str | Path) -> torch.nn.Module:
         path = resolve(checkpoint)
         if not path.exists():
             raise FileNotFoundError(
@@ -80,13 +89,13 @@ class DermaPipeline:
 
     @torch.no_grad()
     def _classify(self, image_rgb: np.ndarray) -> tuple[int, np.ndarray, torch.Tensor]:
-        tensor = self.cls_tf(image=image_rgb)["image"].unsqueeze(0).to(self.device)
+        tensor = self.cls_tf(image_rgb).unsqueeze(0).to(self.device)
         probs = torch.softmax(self.classifier(tensor), dim=1)[0].cpu().numpy()
         return int(probs.argmax()), probs, tensor
 
     @torch.no_grad()
     def _segment(self, image_rgb: np.ndarray) -> np.ndarray:
-        tensor = self.seg_tf(image=image_rgb)["image"].unsqueeze(0).to(self.device)
+        tensor = self.seg_tf(image_rgb).unsqueeze(0).to(self.device)
         logits = self.segmenter(tensor)
         return torch.sigmoid(logits)[0, 0].cpu().numpy()
 

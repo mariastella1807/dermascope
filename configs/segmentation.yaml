@@ -1,48 +1,49 @@
 # Tarea 2 (§4.2): segmentacion binaria de la lesion.
-# El modelo principal es SegFormer-B0, que aporta el requisito de self-attention (§4.3).
-# El baseline U-Net existe para poder responder "que aporta el self-attention".
+# U-Net con encoder ResNet-34 y un bloque de self-attention en el cuello de botella (§4.3).
+# La ablacion se corre con el mismo archivo y el flag --no-attention, para que el unico
+# factor que cambia entre las dos corridas sea el bloque de atencion.
 
 paths_config: configs/paths.yaml
 
 model:
-  arch: segformer             # segformer | unet
-  segformer_checkpoint: nvidia/mit-b0
-  unet_encoder: resnet34      # solo para arch: unet
+  pretrained: true            # encoder ResNet-34 con pesos de ImageNet
   num_classes: 1              # mascara binaria lesion / fondo
+  use_self_attention: true
 
 data:
-  image_size: 512             # SegFormer predice a 1/4 de resolucion; se reescala al final
-  batch_size: 8
+  # 256 y no 512: las lesiones de HAM10000 suelen ocupar buena parte de la imagen, y a
+  # 256px el entrenamiento es ~4 veces mas rapido. Debe ser multiplo de 32 porque el
+  # encoder reduce la resolucion 5 veces a la mitad (256 -> 8x8 = 64 tokens).
+  image_size: 256
+  batch_size: 16
   num_workers: 4
 
 train:
-  # 25 y no 40: las mascaras de Tschandl cubren las ~10.015 imagenes, asi que cada
-  # epoca ve casi 4x mas datos que con el subconjunto de 2.594 del ISIC Task 1. Con
-  # ~7.000 imagenes de entrenamiento a 512px, 40 epocas arriesgan agotar la sesion
-  # de Colab sin aportar nada que el early stopping no corte antes.
   epochs: 25
   optimizer: adamw
-  lr: 6.0e-5                  # los transformers de vision toleran mal lr altos en fine-tuning
-  weight_decay: 0.01
-  scheduler: poly
-  poly_power: 1.0
+  lr: 1.0e-4                  # encoder preentrenado
+  head_lr_multiplier: 10.0    # decoder y atencion, que parten de cero
+  weight_decay: 1.0e-4
+  plateau_factor: 0.5         # ReduceLROnPlateau sobre val_loss, igual que el clasificador
+  plateau_patience: 2
   loss: bce_dice              # BCE sola sesga hacia el fondo, que domina el area
   dice_weight: 0.5
   amp: true
-  early_stopping_patience: 8
+  early_stopping_patience: 6
   monitor: val_dice
 
 augment:
   hflip: 0.5
   vflip: 0.5
-  rotate90: 0.5
+  rotate_degrees: 45
   scale_limit: 0.2
   shift_limit: 0.1
-  brightness_contrast: 0.3
+  brightness: 0.15
+  contrast: 0.15
 
 postprocess:
   # §4.2 — de la mascara al objeto aislado
   threshold: 0.5
   keep_largest_component: true   # la lesion es unica por imagen; descarta ruido satelite
-  morph_close_kernel: 5
+  morph_close_kernel: 5          # impar: el cierre se hace con max pooling de ventana k x k
   min_area_ratio: 0.001          # por debajo de esto se considera "sin deteccion"

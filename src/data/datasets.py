@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import cv2
 import numpy as np
 import pandas as pd
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import tv_tensors
 
 from src.config import resolve
 
@@ -28,11 +29,13 @@ def load_splits(cfg) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def _read_rgb(path: str | Path) -> np.ndarray:
-    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
-    if image is None:
-        raise FileNotFoundError(f"No se pudo leer la imagen: {path}")
-    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+def read_rgb(path: str | Path) -> Image.Image:
+    return Image.open(path).convert("RGB")
+
+
+def read_mask(path: str | Path) -> np.ndarray:
+    """Mascara binaria (H, W) en 0/1. Los archivos de HAM10000 vienen en 0/255."""
+    return (np.array(Image.open(path).convert("L")) > 127).astype(np.uint8)
 
 
 class DermaClassificationDataset(Dataset):
@@ -47,8 +50,7 @@ class DermaClassificationDataset(Dataset):
 
     def __getitem__(self, idx: int):
         row = self.frame.iloc[idx]
-        image = _read_rgb(row["image_path"])
-        image = self.transform(image=image)["image"]
+        image = self.transform(read_rgb(row["image_path"]))
         return image, int(row["dx_idx"])
 
     def class_counts(self, num_classes: int) -> np.ndarray:
@@ -65,7 +67,7 @@ class DermaSegmentationDataset(Dataset):
         frame = frame[frame["has_mask"]].reset_index(drop=True)
         if frame.empty:
             raise ValueError(
-                "Ninguna fila tiene mascara. Verifica data/raw/ISIC2018_Task1_masks."
+                "Ninguna fila tiene mascara. Verifica paths.seg_masks en configs/paths.yaml."
             )
         self.frame = frame
         self.transform = transform
@@ -75,18 +77,12 @@ class DermaSegmentationDataset(Dataset):
 
     def __getitem__(self, idx: int):
         row = self.frame.iloc[idx]
-        image = _read_rgb(row["image_path"])
-        mask = cv2.imread(str(row["mask_path"]), cv2.IMREAD_GRAYSCALE)
-        if mask is None:
-            raise FileNotFoundError(f"No se pudo leer la mascara: {row['mask_path']}")
-        # Las mascaras de ISIC vienen en 0/255; se normalizan a 0/1 float.
-        mask = (mask > 127).astype(np.float32)
-
-        out = self.transform(image=image, mask=mask)
-        mask_tensor = out["mask"]
-        if not torch.is_tensor(mask_tensor):
-            mask_tensor = torch.from_numpy(mask_tensor)
-        return out["image"], mask_tensor.unsqueeze(0).float()
+        image = read_rgb(row["image_path"])
+        # Envolver la mascara en tv_tensors.Mask es lo que le indica a transforms.v2 que
+        # debe recibir las mismas transformaciones geometricas que la imagen.
+        mask = tv_tensors.Mask(torch.from_numpy(read_mask(row["mask_path"])))
+        image, mask = self.transform(image, mask)
+        return image, mask.unsqueeze(0).float()  # (1, H, W) en 0/1
 
 
 def make_dataloaders(cfg, task: str):

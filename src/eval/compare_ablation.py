@@ -4,7 +4,7 @@
 aporta cada mecanismo frente a una version sin el. Este script produce las dos tablas:
 
 1. CBAM: clasificador con y sin el bloque -> accuracy, macro-F1, F1 por clase, parametros.
-2. Self-attention: SegFormer (atencion) vs U-Net (convolucional) -> Dice, IoU, parametros.
+2. Self-attention: U-Net con y sin el bloque -> Dice, IoU, parametros.
 
 Ademas calcula la metrica de localizacion de la atencion: que fraccion de la masa de
 Grad-CAM cae dentro de la mascara real de la lesion. Ese numero convierte el analisis
@@ -65,8 +65,8 @@ def cbam_table(results: dict[str, dict], class_names: list[str]) -> pd.DataFrame
 def segmentation_table(results: dict[str, dict]) -> pd.DataFrame:
     rows = []
     for filename, label in [
-        ("segmentation_unet.json", "U-Net ResNet-34 (convolucional)"),
-        ("segmentation_segformer.json", "SegFormer-B0 (self-attention)"),
+        ("segmentation_noattn.json", "U-Net ResNet-34 (sin self-attention)"),
+        ("segmentation_attn.json", "U-Net ResNet-34 + self-attention"),
     ]:
         data = results.get(filename)
         if not data:
@@ -95,10 +95,9 @@ def attention_localization(cfg_cls, n_images: int = 100) -> pd.DataFrame:
     de referencia es lo que define "dentro de la lesion".
     """
     from src.data import transforms as T
-    from src.data.datasets import load_splits, _read_rgb
+    from src.data.datasets import load_splits, read_mask, read_rgb
     from src.explain.gradcam import GradCAM, attention_mass_in_mask
     from src.models.classifier import build_classifier
-    import cv2
 
     splits = load_splits(cfg_cls)
     subset = splits[(splits["split"] == "test") & (splits["has_mask"])].head(n_images)
@@ -123,13 +122,14 @@ def attention_localization(cfg_cls, n_images: int = 100) -> pd.DataFrame:
         fractions = []
         with GradCAM(model, model.gradcam_target_layer) as cam_fn:
             for _, row in subset.iterrows():
-                image = _read_rgb(row["image_path"])
-                tensor = eval_tf(image=image)["image"].unsqueeze(0).to(device)
+                tensor = eval_tf(read_rgb(row["image_path"])).unsqueeze(0).to(device)
                 cam, _ = cam_fn(tensor)
 
-                mask = cv2.imread(str(row["mask_path"]), cv2.IMREAD_GRAYSCALE)
-                mask = cv2.resize(mask, cam.shape[::-1], interpolation=cv2.INTER_NEAREST)
-                fractions.append(attention_mass_in_mask(cam, (mask > 127).astype(np.float32)))
+                # La mascara original (600x450) se lleva al tamano del mapa (224x224) con
+                # vecino mas cercano, para que siga siendo binaria.
+                mask = torch.from_numpy(read_mask(row["mask_path"])).float()[None, None]
+                mask = torch.nn.functional.interpolate(mask, size=cam.shape, mode="nearest")
+                fractions.append(attention_mass_in_mask(cam, mask[0, 0].numpy()))
 
         rows.append(
             {
@@ -161,8 +161,8 @@ def main() -> None:
         [
             "classification_cbam.json",
             "classification_nocbam.json",
-            "segmentation_segformer.json",
-            "segmentation_unet.json",
+            "segmentation_attn.json",
+            "segmentation_noattn.json",
         ],
     )
 

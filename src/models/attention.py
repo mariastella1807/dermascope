@@ -1,4 +1,4 @@
-"""Bloques de atencion: CBAM y su version reducida SE (§4.3).
+"""Bloques de atencion (§4.3): CBAM, su version reducida SE, y self-attention.
 
 CBAM (Woo et al., 2018) refina un mapa de activaciones en dos pasos secuenciales:
 
@@ -14,6 +14,8 @@ espacial le da al modelo un mecanismo explicito para descontarlos.
 """
 
 from __future__ import annotations
+
+import math
 
 import torch
 import torch.nn as nn
@@ -99,3 +101,64 @@ class SEBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.channel(x)
+
+
+class SelfAttention2d(nn.Module):
+    """Self-attention sobre un mapa de caracteristicas: la operacion central de ViT.
+
+    Es la formula vista en la Semana 3 con Vision Transformer:
+
+        Atencion(Q, K, V) = softmax( Q K^T / sqrt(d_k) ) V
+
+    Lo unico que cambia es de donde salen los tokens. ViT corta la imagen en parches; aqui
+    cada posicion del mapa que entrega `layer4` de ResNet-34 es un token. A 256px ese mapa
+    es de 8x8, asi que hay 64 tokens y el costo O(N^2) que se discutio en clase es
+    pequeno: 64 x 64 = 4.096 productos.
+
+    Por que va en el cuello de botella de la U-Net: una convolucion 3x3 solo ve a sus
+    vecinos, y la auto-atencion conecta cada posicion con todas las demas en una sola
+    capa. El decodificador recibe asi features que ya "saben" donde esta el resto de la
+    lesion, lo que deberia ayudar en lesiones grandes o de borde difuso.
+
+    Tres detalles tomados de ViT y ResNet:
+    - Embeddings de posicion aprendibles: la atencion es invariante a permutaciones y sin
+      ellos no sabria donde esta cada token.
+    - LayerNorm antes de calcular Q, K y V.
+    - Conexion residual, x + Atencion(x). La proyeccion de salida arranca en ceros, asi
+      que al inicio del entrenamiento el bloque es la identidad y no altera los features
+      preentrenados; solo empieza a aportar si eso reduce la perdida.
+    """
+
+    def __init__(self, channels: int, n_tokens: int) -> None:
+        super().__init__()
+        self.channels = channels
+        self.norm = nn.LayerNorm(channels)
+        self.query = nn.Linear(channels, channels)
+        self.key = nn.Linear(channels, channels)
+        self.value = nn.Linear(channels, channels)
+        self.proj = nn.Linear(channels, channels)
+        nn.init.zeros_(self.proj.weight)
+        nn.init.zeros_(self.proj.bias)
+        self.pos_embed = nn.Parameter(torch.zeros(1, n_tokens, channels))
+        nn.init.trunc_normal_(self.pos_embed, std=0.02)
+        # Ultima matriz de atencion (B, N, N), guardada para poder visualizarla.
+        self.last_attention: torch.Tensor | None = None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, h, w = x.shape
+        tokens = x.flatten(2).transpose(1, 2)  # (B, C, H, W) -> (B, N, C), N = H*W
+        if tokens.size(1) != self.pos_embed.size(1):
+            raise ValueError(
+                f"El bloque espera {self.pos_embed.size(1)} tokens y recibio {tokens.size(1)}: "
+                "la imagen de entrada no tiene el tamano de entrenamiento"
+            )
+
+        t = self.norm(tokens + self.pos_embed)
+        q, k, v = self.query(t), self.key(t), self.value(t)
+
+        scores = q @ k.transpose(1, 2) / math.sqrt(c)  # (B, N, N)
+        weights = scores.softmax(dim=-1)                # cada fila suma 1
+        self.last_attention = weights.detach()
+
+        tokens = tokens + self.proj(weights @ v)
+        return tokens.transpose(1, 2).reshape(b, c, h, w)

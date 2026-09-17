@@ -87,7 +87,11 @@ def sparsity_report(model: nn.Module) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/classification.yaml")
-    parser.add_argument("--checkpoint", default="models/classifier_cbam_best.pt")
+    parser.add_argument(
+        "--checkpoint",
+        default=None,
+        help="Por defecto, classifier_cbam_best.pt dentro de paths.models",
+    )
     parser.add_argument("--amount", type=float, default=0.3)
     parser.add_argument(
         "--finetune-epochs",
@@ -106,8 +110,13 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_names = list(cfg.classes)
 
+    checkpoint = (
+        resolve(args.checkpoint)
+        if args.checkpoint
+        else resolve(cfg.paths.models) / "classifier_cbam_best.pt"
+    )
     model = build_classifier(cfg).to(device)
-    model.load_state_dict(torch.load(resolve(args.checkpoint), map_location=device)["model"])
+    model.load_state_dict(torch.load(checkpoint, map_location=device)["model"])
 
     loaders, _ = make_dataloaders(cfg, "classification")
 

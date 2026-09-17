@@ -41,7 +41,7 @@ def get_pipeline() -> DermaPipeline:
     """Una sola carga de modelos por proceso.
 
     Sin `cache_resource`, Streamlit reejecuta el script completo en cada interaccion y
-    recargaria ResNet y SegFormer desde disco cada vez, lo que hace la demo inusable.
+    recargaria el clasificador y la U-Net desde disco cada vez, lo que hace la demo inusable.
     """
     return DermaPipeline()
 

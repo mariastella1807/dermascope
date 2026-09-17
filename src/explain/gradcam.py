@@ -23,11 +23,11 @@ no en artefactos como pelo, burbujas de inmersion o el vineteado del dermatoscop
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from matplotlib import colormaps
 
 
 class GradCAM:
@@ -140,14 +140,21 @@ def _normalize(cam: np.ndarray) -> np.ndarray:
     return (cam / peak).astype(np.float32) if peak > 1e-8 else np.zeros_like(cam, dtype=np.float32)
 
 
+def resize_map(values: np.ndarray, height: int, width: int) -> np.ndarray:
+    """Reescala un mapa 2D con interpolacion bilineal."""
+    tensor = torch.from_numpy(np.asarray(values, dtype=np.float32))[None, None]
+    resized = F.interpolate(tensor, size=(height, width), mode="bilinear", align_corners=False)
+    return resized[0, 0].numpy()
+
+
 def overlay_heatmap(
     image_rgb: np.ndarray, cam: np.ndarray, alpha: float = 0.4
 ) -> np.ndarray:
-    """Superpone el mapa sobre la imagen original en RGB uint8."""
+    """Superpone el mapa sobre la imagen original, con la paleta `jet` de matplotlib."""
+    image_rgb = np.asarray(image_rgb)
     if cam.shape != image_rgb.shape[:2]:
-        cam = cv2.resize(cam, (image_rgb.shape[1], image_rgb.shape[0]))
-    heat = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
-    heat = cv2.cvtColor(heat, cv2.COLOR_BGR2RGB)
+        cam = resize_map(cam, *image_rgb.shape[:2])
+    heat = colormaps["jet"](np.clip(cam, 0, 1))[..., :3] * 255  # (H, W, 4) RGBA -> RGB
     return np.uint8((1 - alpha) * image_rgb + alpha * heat)
 
 
@@ -160,7 +167,7 @@ def attention_mass_in_mask(cam: np.ndarray, mask: np.ndarray) -> float:
     fraccion sube respecto al modelo sin el bloque.
     """
     if cam.shape != mask.shape:
-        cam = cv2.resize(cam, (mask.shape[1], mask.shape[0]))
+        cam = resize_map(cam, *mask.shape)
     total = cam.sum()
     if total <= 1e-8:
         return 0.0

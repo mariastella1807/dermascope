@@ -26,7 +26,9 @@ pregunta en la sustentación.
 | Decisión | Alternativa descartada | Razón |
 | --- | --- | --- |
 | ResNet-34 como backbone | EfficientNet-B0 | `layer1..4` son `nn.Sequential`, así que CBAM se integra dentro del backbone y no detrás del pooling; además cuantiza a INT8 sin sorpresas |
-| SegFormer-B0 | U-Net sola | Aporta el requisito de self-attention de §4.3 y permite la comparación contra el baseline convolucional |
+| U-Net + bloque de self-attention | SegFormer (transformer completo) | U-Net y ViT se vieron en clase; además la ablación con/sin bloque cambia un solo factor, mientras que SegFormer contra U-Net cambia toda la arquitectura |
+| Segmentación a 256px | 512px | Las lesiones ocupan buena parte de la imagen y el entrenamiento es ~4 veces más rápido |
+| `ReduceLROnPlateau` | Coseno con warmup | Es el programador usado en clase y reacciona a la curva de validación real |
 | Macro-F1 como métrica de selección | Accuracy | Con `nv` al 67%, la accuracy premia al clasificador constante |
 | Pérdida ponderada por clase | Oversampling | No duplica imágenes ni altera la distribución de las aumentaciones |
 | BCE + Dice | BCE sola | La BCE sola sesga hacia el fondo, que domina el área en lesiones pequeñas |
@@ -45,9 +47,11 @@ Cada mecanismo con su comparación propia.
 
 ### 4.2 Self-attention en el segmentador
 
-- Qué hace el encoder MiT de SegFormer y por qué importa cuando la lesión ocupa una
-  fracción variable del campo.
-- Tabla SegFormer vs U-Net: `reports/results/comparacion_segmentacion.csv`.
+- Dónde va el bloque (cuello de botella, 8x8 = 64 tokens) y por qué ahí: la convolución
+  solo ve vecinos; la auto-atención conecta cada posición con todas las demás.
+- Tabla U-Net con y sin self-attention: `reports/results/comparacion_segmentacion.csv`.
+- Mapa de atención: `SelfAttention2d.last_attention` guarda la matriz 64x64 para
+  visualizar a qué regiones mira cada posición.
 
 ### 4.3 Grad-CAM como interpretabilidad
 

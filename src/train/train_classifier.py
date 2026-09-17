@@ -16,46 +16,24 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
-from tqdm import tqdm
 
 from src.config import load_config, resolve, set_seed
 from src.eval.metrics import class_weights_balanced, classification_metrics
 
 
-def build_scheduler(optimizer, cfg, steps_per_epoch: int):
-    """Cosine con warmup lineal, implementado sobre LambdaLR.
-
-    El warmup importa porque la cabeza arranca aleatoria y los CBAM tambien: sin el, los
-    primeros gradientes grandes se propagan al backbone preentrenado y borran features
-    de ImageNet que luego cuesta recuperar.
-    """
-    warmup_steps = cfg.train.warmup_epochs * steps_per_epoch
-    total_steps = cfg.train.epochs * steps_per_epoch
-
-    def lr_lambda(step: int) -> float:
-        if step < warmup_steps:
-            return (step + 1) / max(warmup_steps, 1)
-        progress = (step - warmup_steps) / max(total_steps - warmup_steps, 1)
-        return 0.5 * (1 + math.cos(math.pi * min(progress, 1.0)))
-
-    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-
-
-def run_epoch(model, loader, criterion, optimizer, scheduler, scaler, device, train: bool):
+def run_epoch(model, loader, criterion, optimizer, scaler, device, train: bool):
     model.train(train)
     total_loss, n = 0.0, 0
     y_true, y_pred = [], []
 
     context = torch.enable_grad() if train else torch.no_grad()
     with context:
-        for images, labels in tqdm(loader, leave=False, desc="train" if train else "eval"):
+        for images, labels in loader:
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
 
@@ -72,7 +50,6 @@ def run_epoch(model, loader, criterion, optimizer, scheduler, scaler, device, tr
                 else:
                     loss.backward()
                     optimizer.step()
-                scheduler.step()
 
             total_loss += loss.item() * labels.size(0)
             n += labels.size(0)
@@ -119,14 +96,18 @@ def main() -> None:
     else:
         weights = None
 
-    criterion = nn.CrossEntropyLoss(
-        weight=weights, label_smoothing=cfg.train.label_smoothing
-    )
+    criterion = nn.CrossEntropyLoss(weight=weights)
     optimizer = torch.optim.AdamW(
         model.param_groups(cfg.train.lr, cfg.train.head_lr_multiplier),
         weight_decay=cfg.train.weight_decay,
     )
-    scheduler = build_scheduler(optimizer, cfg, len(loaders["train"]))
+    # Si val_loss no mejora en `patience` epocas, todos los lr se multiplican por `factor`.
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",
+        factor=cfg.train.plateau_factor,
+        patience=cfg.train.plateau_patience,
+    )
     scaler = (
         torch.amp.GradScaler(device.type)
         if (cfg.train.amp and device.type == "cuda")
@@ -143,11 +124,12 @@ def main() -> None:
 
     for epoch in range(1, cfg.train.epochs + 1):
         train_loss, ytr, ypr = run_epoch(
-            model, loaders["train"], criterion, optimizer, scheduler, scaler, device, True
+            model, loaders["train"], criterion, optimizer, scaler, device, True
         )
         val_loss, yte, ype = run_epoch(
-            model, loaders["val"], criterion, optimizer, scheduler, scaler, device, False
+            model, loaders["val"], criterion, optimizer, scaler, device, False
         )
+        scheduler.step(val_loss)
 
         train_m = classification_metrics(ytr, ypr, class_names)
         val_m = classification_metrics(yte, ype, class_names)
@@ -191,7 +173,7 @@ def main() -> None:
     # Evaluacion final en test con el mejor checkpoint, no con los pesos de la ultima epoca.
     model.load_state_dict(torch.load(ckpt_path, map_location=device)["model"])
     _, yte, ype = run_epoch(
-        model, loaders["test"], criterion, optimizer, scheduler, scaler, device, False
+        model, loaders["test"], criterion, optimizer, scaler, device, False
     )
     test_m = classification_metrics(yte, ype, class_names)
 
