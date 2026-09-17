@@ -17,7 +17,7 @@ model:
 data:
   image_size: 224
   batch_size: 32
-  num_workers: 4
+  num_workers: 2               # Colab gratuito tiene 2 nucleos de CPU; mas procesos lo ralentizan
 
 train:
   epochs: 25

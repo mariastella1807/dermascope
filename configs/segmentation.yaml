@@ -16,7 +16,7 @@ data:
   # encoder reduce la resolucion 5 veces a la mitad (256 -> 8x8 = 64 tokens).
   image_size: 256
   batch_size: 16
-  num_workers: 4
+  num_workers: 2               # Colab gratuito tiene 2 nucleos de CPU; mas procesos lo ralentizan
 
 train:
   epochs: 25
