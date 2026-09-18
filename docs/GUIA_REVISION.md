@@ -188,8 +188,9 @@ python -m streamlit run app/streamlit_app.py
 Si tienes Python 3.11, usa `python3.11` en la tercera línea. La próxima vez: entra a la
 carpeta, activa el entorno con `source .venv/bin/activate` y ejecuta la última línea.
 
-> Estas instrucciones se probaron en Windows 11. En Mac y Linux son los pasos estándar de
-> Python, pero no se han probado en este proyecto.
+> Las instrucciones de Windows se probaron de principio a fin en Windows 11, clonando el
+> repositorio desde cero. En Mac y Linux son los pasos estándar de Python, pero no se han
+> probado en este proyecto.
 
 ### 6.4 Comprobar que todo quedó bien
 
@@ -226,6 +227,7 @@ suspender el computador, y cualquiera que la tenga puede entrar mientras está a
 | La app dice `Falta el checkpoint …` | Falta el paso 5: `scripts\descargar_modelos.py` |
 | `descargar_modelos.py` dice que un archivo llegó incompleto | Se cortó la descarga: vuelve a ejecutarlo |
 | El puerto 8501 está ocupado | Ya hay una app abierta; ciérrala o usa `--server.port 8502` |
+| `git clone` falla con `Filename too long` | La carpeta donde clonas tiene una ruta muy larga (pasa a veces dentro de OneDrive). Clona en una carpeta corta, por ejemplo `C:\proyectos` |
 
 ## 7. Si quieres modificar la app
 
