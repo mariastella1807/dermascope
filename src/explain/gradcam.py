@@ -1,4 +1,4 @@
-"""Grad-CAM y SmoothGrad-CAM implementados desde cero (§4.3).
+"""Grad-CAM implementado desde cero (§4.3).
 
 Se implementa a mano en vez de usar `pytorch-grad-cam` por dos razones: es una
 dependencia menos en el despliegue, y en la sustentacion hay que poder explicar el
@@ -17,8 +17,13 @@ de la clase:
 
 En este proyecto se aplica sobre `layer4`, que con CBAM activo termina en el bloque de
 atencion. Comparar el mapa del modelo con y sin CBAM es la evidencia visual que pide
-§4.3: el objetivo es mostrar que con CBAM la masa del mapa se concentra en la lesion y
-no en artefactos como pelo, burbujas de inmersion o el vineteado del dermatoscopio.
+§4.3: se mide si con CBAM la masa del mapa se concentra mas en la lesion y menos en
+artefactos como pelo, burbujas de inmersion o el vineteado del dermatoscopio.
+
+No se usa SmoothGrad (promediar Grad-CAM sobre copias de la imagen con ruido gaussiano):
+con ruido de apenas el 5% del rango de la entrada, el clasificador cambia de clase en
+buena parte de las imagenes, asi que el promedio explicaria entradas que el modelo ve
+distinto y, en varios casos, salia un mapa vacio.
 """
 
 from __future__ import annotations
@@ -100,37 +105,6 @@ class GradCAM:
             self.model.train()
 
         return _normalize(cam), class_idx
-
-
-class SmoothGradCAM(GradCAM):
-    """Promedia Grad-CAM sobre copias de la entrada con ruido gaussiano.
-
-    El mapa crudo de Grad-CAM es sensible al punto exacto de evaluacion del gradiente y
-    suele salir ruidoso. Promediar sobre n muestras perturbadas produce un mapa mas
-    estable, que es el que conviene mostrar en el aplicativo.
-    """
-
-    def __call__(
-        self,
-        input_tensor: torch.Tensor,
-        class_idx: int | None = None,
-        n_samples: int = 16,
-        noise_std: float = 0.15,
-    ) -> tuple[np.ndarray, int]:
-        # La clase se fija con la entrada limpia; si no, distintas muestras podrian
-        # explicar clases distintas y el promedio no significaria nada.
-        if class_idx is None:
-            with torch.no_grad():
-                class_idx = int(self.model(input_tensor).argmax(dim=1).item())
-
-        sigma = noise_std * float(input_tensor.max() - input_tensor.min())
-        accumulator = np.zeros(input_tensor.shape[-2:], dtype=np.float64)
-        for _ in range(n_samples):
-            noisy = input_tensor + torch.randn_like(input_tensor) * sigma
-            cam, _ = super().__call__(noisy, class_idx)
-            accumulator += cam
-
-        return _normalize(accumulator / n_samples), class_idx
 
 
 def _normalize(cam: np.ndarray) -> np.ndarray:

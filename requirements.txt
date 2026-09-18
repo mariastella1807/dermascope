@@ -24,4 +24,4 @@ onnxruntime>=1.17
 onnxscript>=0.2          # exportador ONNX de las versiones recientes de PyTorch
 
 # Despliegue (§4.6)
-streamlit>=1.33
+streamlit>=1.50

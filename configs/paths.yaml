@@ -33,10 +33,10 @@ classes:
   - vasc
 
 class_names_es:
-  akiec: Queratosis actinica / carcinoma intraepitelial
+  akiec: Queratosis actínica / carcinoma intraepitelial
   bcc: Carcinoma basocelular
-  bkl: Lesion benigna tipo queratosis
+  bkl: Lesión benigna tipo queratosis
   df: Dermatofibroma
   mel: Melanoma
-  nv: Nevus melanocitico
-  vasc: Lesion vascular
+  nv: Nevus melanocítico
+  vasc: Lesión vascular

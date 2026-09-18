@@ -8,7 +8,7 @@ Orden de ejecucion y por que:
 
 1. Clasificacion sobre la imagen completa. No sobre el recorte: el contexto de piel
    perilesional es informativo y el modelo se entreno con la imagen entera.
-2. Grad-CAM sobre la clase predicha.
+2. Grad-CAM sobre la clase predicha, con la misma imagen que se clasifico.
 3. Segmentacion, tambien sobre la imagen completa.
 4. Aislamiento de la lesion a partir de la mascara (§4.2).
 5. Fraccion de la masa de atencion que cae dentro de la mascara predicha: cierra el
@@ -25,7 +25,7 @@ import torch
 
 from src.config import load_config, resolve
 from src.data import transforms as T
-from src.explain.gradcam import SmoothGradCAM, attention_mass_in_mask, overlay_heatmap
+from src.explain.gradcam import GradCAM, attention_mass_in_mask, overlay_heatmap
 from src.explain.isolate import IsolationResult, isolate_lesion
 from src.models.classifier import build_classifier
 from src.models.segmenter import build_segmenter
@@ -99,7 +99,7 @@ class DermaPipeline:
         logits = self.segmenter(tensor)
         return torch.sigmoid(logits)[0, 0].cpu().numpy()
 
-    def run(self, image_rgb: np.ndarray, smooth_samples: int = 8) -> PipelineOutput:
+    def run(self, image_rgb: np.ndarray) -> PipelineOutput:
         import time
 
         latency: dict[str, float] = {}
@@ -109,8 +109,8 @@ class DermaPipeline:
         latency["clasificacion"] = (time.perf_counter() - start) * 1000
 
         start = time.perf_counter()
-        with SmoothGradCAM(self.classifier, self.classifier.gradcam_target_layer) as cam_fn:
-            cam, _ = cam_fn(cls_tensor, class_idx, n_samples=smooth_samples)
+        with GradCAM(self.classifier, self.classifier.gradcam_target_layer) as cam_fn:
+            cam, _ = cam_fn(cls_tensor, class_idx)
         latency["gradcam"] = (time.perf_counter() - start) * 1000
 
         start = time.perf_counter()

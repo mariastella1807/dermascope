@@ -74,7 +74,7 @@ Detalle completo del proceso en `scripts/download_data.md`.
 - **CBAM** (atención de canal + espacial) integrado en el backbone del clasificador.
 - **Self-attention** (`softmax(QKᵀ/√dₖ)V`, la operación de ViT) sobre los 64 tokens del
   mapa de 8x8 que sale del encoder de la U-Net.
-- **SmoothGrad-CAM** como herramienta de interpretabilidad, mostrada en el aplicativo.
+- **Grad-CAM** como herramienta de interpretabilidad, en los notebooks y en el aplicativo.
 
 ## 4. Métricas de desempeño
 
@@ -108,7 +108,7 @@ clasificador constante alcanza ~67% de accuracy sin haber aprendido nada.
 
 Calculada sobre todas las imágenes de test con Grad-CAM y la **máscara anotada**; el
 detalle por clase está en `reports/results/localizacion_atencion_por_clase.csv`. El
-porcentaje que muestra el aplicativo es otra medida: usa SmoothGrad-CAM y la **máscara
+porcentaje que muestra el aplicativo es otra medida: usa la **máscara
 predicha** por el segmentador, así que ambos números no deben compararse.
 
 ### 4.4 Optimización

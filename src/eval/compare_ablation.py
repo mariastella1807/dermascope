@@ -13,7 +13,7 @@ sustentacion que "se ve mejor".
 
 Esta metrica NO es la misma que muestra el aplicativo. Aqui se usa Grad-CAM y la mascara
 ANOTADA del dataset, porque el objetivo es medir si el clasificador atiende a la lesion
-real. El aplicativo no tiene anotacion: usa SmoothGrad-CAM y la mascara PREDICHA por el
+real. El aplicativo no tiene anotacion: usa Grad-CAM y la mascara PREDICHA por el
 segmentador. Los dos numeros responden preguntas distintas y no deben compararse.
 
 Uso:

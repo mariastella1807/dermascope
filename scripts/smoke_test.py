@@ -140,7 +140,7 @@ def _gradcam() -> str:
     import torch
 
     from src.config import load_config
-    from src.explain.gradcam import GradCAM, SmoothGradCAM
+    from src.explain.gradcam import GradCAM
     from src.models.classifier import build_classifier
 
     cfg = load_config("configs/classification.yaml")
@@ -152,9 +152,6 @@ def _gradcam() -> str:
     assert cam.shape == (cfg.data.image_size, cfg.data.image_size), f"cam: {cam.shape}"
     assert 0.0 <= cam.min() and cam.max() <= 1.0 + 1e-5, "cam fuera de [0,1]"
 
-    with SmoothGradCAM(model, model.gradcam_target_layer) as smooth_fn:
-        smooth, _ = smooth_fn(x, idx, n_samples=2)
-    assert smooth.shape == cam.shape
     return f"mapa {cam.shape}, clase {idx}, rango [{cam.min():.3f}, {cam.max():.3f}]"
 
 
