@@ -16,6 +16,7 @@ Maestría en Inteligencia Artificial y Ciencia de Datos — Universidad Autónom
 > | Leer los entregables | [Model card](MODEL_CARD.md) · [Documento breve](reports/informe.md) |
 > | Descargar los modelos entrenados | [Release `modelos-v1`](https://github.com/mariastella1807/dermascope/releases/tag/modelos-v1) |
 > | Usar la app | [Guía, sección 6](docs/GUIA_REVISION.md#6-usar-la-app-en-tu-computador) |
+> | Prepararse para la sustentación | [Guía de estudio](docs/GUIA_ESTUDIO.md) |
 
 ## Problema
 

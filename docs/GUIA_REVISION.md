@@ -258,7 +258,9 @@ Después de modificar, corre `scripts/smoke_test.py` para comprobar que nada se 
 - [ ] ¿Cada número de los documentos coincide con `reports/results/`?
 
 **Preparación para la sustentación.** El profesor escoge **al azar** quién presenta, y si
-esa persona no puede responder, el grupo saca 0. Cada integrante debería poder explicar:
+esa persona no puede responder, el grupo saca 0. La **[guía de estudio](GUIA_ESTUDIO.md)**
+explica cada punto y trae 20 preguntas probables con su respuesta. Cada integrante debería
+poder explicar:
 
 - [ ] Por qué la partición se hace por lesión y no por imagen.
 - [ ] Qué hace CBAM y qué hace self-attention, con sus fórmulas.
