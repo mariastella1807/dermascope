@@ -122,11 +122,28 @@ alcanza 0,679 de accuracy pero solo 0,116 de macro-F1.
 | `nv` | 1.020 | 0,96 | 0,72 | 0,82 | 0,84 |
 | `vasc` | 21 | 0,77 | 0,81 | 0,79 | 0,77 |
 
-**Melanoma.** Es donde CBAM sí marca una diferencia: detecta 115 de los 160 melanomas
-(recall 0,72) frente a 80 sin CBAM (0,50). De esos melanomas, 41 los detecta solo el
-modelo con CBAM y 6 solo el modelo sin él (prueba de McNemar exacta, p = 1,8·10⁻⁷). Los
-melanomas confundidos con nevus bajan de 34 a 16. El costo es la precisión: de cada 3
-imágenes que el modelo marca como melanoma, solo 1 lo es (0,33).
+**Melanoma: más sensible, pero no demostrablemente mejor.** Con la regla de la clase
+más probable, el modelo con CBAM detecta 115 de los 160 melanomas (recall 0,72) frente a
+80 sin CBAM (0,50), y los melanomas confundidos con nevus bajan de 34 a 16. Pero también
+responde "melanoma" con mucha más frecuencia: 346 veces frente a 217, y su precisión es
+menor (0,33 frente a 0,37). Para separar los dos efectos se compararon medidas que no
+dependen del punto de corte:
+
+| Medida | Con CBAM | Sin CBAM |
+| --- | --- | --- |
+| Veces que predice melanoma | 346 | 217 |
+| Recall con la regla de la clase más probable | 0,72 | 0,50 |
+| Recall marcando las 217 imágenes más probables de melanoma | 0,53 | 0,48 |
+| Recall marcando las 346 imágenes más probables de melanoma | 0,71 | 0,66 |
+| AUC de melanoma frente al resto | 0,876 | 0,859 |
+
+Con el mismo número de alertas, la ventaja de CBAM baja a 4–6 puntos de recall, y la
+diferencia de AUC (+0,017, IC 95%: −0,001 a 0,036) no es significativa. La mayor parte del
+aumento de recall viene de que CBAM **desplaza el punto de operación hacia el melanoma**:
+detecta más, a costa de más falsas alarmas. Esa mayor sensibilidad podría ser útil en
+triaje, pero también se obtendría bajando el umbral de melanoma del modelo sin CBAM.
+
+Fuente: `reports/results/analisis_complementario.json` (`python -m src.eval.analisis_complementario`).
 
 ### 4.2 Segmentación y efecto del self-attention
 
@@ -147,6 +164,10 @@ más en `nv` y `mel`, 0,93–0,94 en `bkl`, `df` y `vasc`, 0,90 en `akiec` y **0
 `bcc`**. En lesiones que ocupan menos del 5% de la imagen baja a 0,92. Solo 27 de 1.502
 imágenes tienen Dice menor a 0,7.
 
+El Dice y el IoU se calculan por imagen a 256×256 px, la resolución de trabajo del modelo,
+y luego se promedian. En 300 imágenes de test, calcularlo a la resolución original
+(600×450) da prácticamente lo mismo: 0,9420 frente a 0,9417.
+
 ### 4.3 Localización de la atención del clasificador
 
 Fracción del mapa de Grad-CAM que cae dentro de la **máscara anotada**, sobre las 1.502
@@ -158,8 +179,7 @@ imágenes de test:
 | Con CBAM | 0,443 | 0,437 | 0,480 |
 
 CBAM no concentra más la atención en la lesión: lo hace solo en el 38,5% de las imágenes.
-Sus mejoras en `mel`, `akiec` y `bkl` no se explican por mirar más la lesión, sino por
-cómo pondera la información de la lesión y de la piel que la rodea.
+Sus cambios en el F1 por clase no se explican por mirar más la lesión.
 
 El porcentaje que muestra el aplicativo es otra medida: usa la **máscara predicha** por el
 segmentador, porque en uso real no hay anotación. No es comparable con esta tabla.
@@ -215,18 +235,18 @@ El sistema se comporta como fue evaluado cuando:
 
 En esas condiciones, la segmentación es sólida para lesiones de cualquier tamaño
 (Dice medio entre 0,92 y 0,95 en todos los rangos de tamaño) y el clasificador detecta 72 de
-cada 100 melanomas.
+cada 100 melanomas, con 2 falsas alarmas por cada acierto.
 
 ## 6. Limitaciones
 
 **Del clasificador**
 
 - **Siempre elige una de las 7 clases, sin opción de "no sé".** Con una imagen de piel
-  sin ninguna lesión predice `nv` con 100% de confianza. El aplicativo lo advierte cuando
+  sin ninguna lesión predice `nv` con 99,9% de confianza. El aplicativo lo advierte cuando
   el segmentador no encuentra lesión, pero el clasificador por sí solo no lo detecta.
 - **Muy sensible al ruido.** En 300 imágenes de test, un ruido gaussiano del 2% del rango
-  de la entrada cambia la clase predicha en el 28% de ellas, y uno del 5%, en el 49%, con
-  una caída de accuracy de 0,74 a 0,56. Imágenes con ruido de sensor, compresión fuerte o
+  de la entrada cambia la clase predicha en el 28% de ellas, y uno del 5%, en el 45%, con
+  una caída de accuracy de 0,71 a 0,57. Imágenes con ruido de sensor, compresión fuerte o
   mala iluminación pueden cambiar la predicción.
 - **Muchas falsas alarmas de melanoma.** Precisión de 0,33: dos de cada tres alertas son
   falsas. Además, 16 de los 160 melanomas de test (10%) se clasificaron como nevus.
@@ -246,8 +266,9 @@ cada 100 melanomas.
 **De los mecanismos de atención**
 
 - Con comparaciones controladas, **ni CBAM ni el self-attention mejoran de forma
-  relevante** las métricas globales de una ResNet-34 preentrenada en este problema. El
-  aporte de CBAM se concentra en el recall de melanoma.
+  relevante** las métricas globales de una ResNet-34 preentrenada en este problema. CBAM
+  vuelve al clasificador más sensible al melanoma (más detecciones y más falsas alarmas),
+  pero su mejora en la capacidad de distinguirlo (AUC +0,017) no es significativa.
 - Los resultados provienen de **un solo entrenamiento por configuración** (semilla 42).
   Los intervalos de confianza reflejan la variación por la composición del test, no la
   variación entre entrenamientos.

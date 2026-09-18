@@ -1,0 +1,158 @@
+{
+  "melanoma": {
+    "melanomas_en_test": 160,
+    "con_cbam": {
+      "veces_que_predice_melanoma": 346,
+      "recall": 0.71875,
+      "precision": 0.33236994219653176,
+      "auc_melanoma": 0.8759081594634873,
+      "precision_promedio_melanoma": 0.446454478962667,
+      "auc_macro_ovr": 0.9492464088258423
+    },
+    "sin_cbam": {
+      "veces_que_predice_melanoma": 217,
+      "recall": 0.5,
+      "precision": 0.3686635944700461,
+      "auc_melanoma": 0.8590070789865871,
+      "precision_promedio_melanoma": 0.4382442475923564,
+      "auc_macro_ovr": 0.937479381023327
+    },
+    "recall_con_igual_numero_de_alertas": {
+      "217": {
+        "con_cbam": 0.525,
+        "sin_cbam": 0.48125
+      },
+      "346": {
+        "con_cbam": 0.7125,
+        "sin_cbam": 0.65625
+      }
+    },
+    "diferencia_auc_melanoma": {
+      "valor": 0.0169010804769002,
+      "ic95": [
+        -0.0005416841906051322,
+        0.03604075671164277
+      ],
+      "remuestreos": 2000
+    },
+    "mcnemar_melanomas": {
+      "solo_con_cbam": 41,
+      "solo_sin_cbam": 6,
+      "p_exacto": 1.7716986633331544e-07
+    }
+  },
+  "sensibilidad_al_ruido": {
+    "modelo": "classifier_cbam_best.pt",
+    "imagenes": 300,
+    "niveles": [
+      {
+        "ruido_frac_rango": 0.0,
+        "cambia_la_clase": 0.0,
+        "accuracy": 0.7133333333333334
+      },
+      {
+        "ruido_frac_rango": 0.01,
+        "cambia_la_clase": 0.12333333492279053,
+        "accuracy": 0.7333333333333333
+      },
+      {
+        "ruido_frac_rango": 0.02,
+        "cambia_la_clase": 0.28333333134651184,
+        "accuracy": 0.6666666666666666
+      },
+      {
+        "ruido_frac_rango": 0.05,
+        "cambia_la_clase": 0.4466666579246521,
+        "accuracy": 0.57
+      },
+      {
+        "ruido_frac_rango": 0.1,
+        "cambia_la_clase": 0.8966666460037231,
+        "accuracy": 0.1
+      }
+    ]
+  },
+  "entradas_sin_lesion": [
+    {
+      "entrada": "piel_sin_lesion",
+      "clase_predicha": "nv",
+      "confianza": 0.9987278580665588,
+      "segmentador_detecta_lesion": false
+    },
+    {
+      "entrada": "imagen_negra",
+      "clase_predicha": "nv",
+      "confianza": 0.9999878406524658,
+      "segmentador_detecta_lesion": false
+    }
+  ],
+  "segmentacion": {
+    "por_clase": {
+      "akiec": {
+        "mean": 0.8949,
+        "median": 0.9213,
+        "count": 51
+      },
+      "bcc": {
+        "mean": 0.8378,
+        "median": 0.8952,
+        "count": 65
+      },
+      "bkl": {
+        "mean": 0.9349,
+        "median": 0.9562,
+        "count": 166
+      },
+      "df": {
+        "mean": 0.9301,
+        "median": 0.9324,
+        "count": 19
+      },
+      "mel": {
+        "mean": 0.9527,
+        "median": 0.9712,
+        "count": 160
+      },
+      "nv": {
+        "mean": 0.9559,
+        "median": 0.9748,
+        "count": 1020
+      },
+      "vasc": {
+        "mean": 0.9361,
+        "median": 0.9656,
+        "count": 21
+      }
+    },
+    "por_tamano": {
+      "<5%": {
+        "mean": 0.9184,
+        "median": 0.9567,
+        "count": 126
+      },
+      "5-15%": {
+        "mean": 0.9523,
+        "median": 0.9732,
+        "count": 347
+      },
+      "15-35%": {
+        "mean": 0.9451,
+        "median": 0.9732,
+        "count": 587
+      },
+      ">35%": {
+        "mean": 0.9481,
+        "median": 0.9666,
+        "count": 442
+      }
+    },
+    "imagenes_dice_menor_0_7": 27,
+    "imagenes_dice_menor_0_5": 11,
+    "n": 1502,
+    "resolucion_del_dice": {
+      "n": 300,
+      "dice_256px": 0.9416907940308253,
+      "dice_resolucion_original": 0.9420083554585775
+    }
+  }
+}

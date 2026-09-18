@@ -14,8 +14,9 @@ la lesión, y explica cada predicción con Grad-CAM. Se entrenaron sobre HAM1000
 ResNet-34 con CBAM (macro-F1 de 0,650 en test) y una U-Net con encoder ResNet-34 y un bloque
 de self-attention (Dice de 0,945). Cada mecanismo de atención se evaluó con una comparación
 controlada contra la misma arquitectura sin él y con intervalos de confianza por bootstrap:
-ninguno mejora de forma relevante las métricas globales, pero CBAM eleva el recall de
-melanoma de 0,50 a 0,72. La cuantización INT8 reduce el clasificador un 74,8% y lo acelera
+ninguno mejora de forma relevante las métricas globales. CBAM eleva el recall de melanoma
+de 0,50 a 0,72, pero sobre todo porque responde "melanoma" más seguido: con el mismo número
+de alertas su ventaja es de 4 a 6 puntos y su AUC no es significativamente mayor. La cuantización INT8 reduce el clasificador un 74,8% y lo acelera
 2,4 veces en CPU con una caída de macro-F1 de 0,007. La GPU es entre 14 y 37 veces más rápida
 que la CPU. El sistema se despliega como aplicativo Streamlit publicado con Cloudflare Tunnel.
 
@@ -78,17 +79,33 @@ sobre las predicciones de cada imagen (10.000 remuestreos).
 
 ### 4.1 Clasificación y CBAM
 
-| Modelo | Accuracy | Accuracy balanceada | Macro-F1 | Recall de melanoma |
-| --- | --- | --- | --- | --- |
-| ResNet-34 | 0,725 | 0,726 | 0,638 | 0,50 |
-| ResNet-34 + CBAM | 0,720 | 0,746 | 0,650 | 0,72 |
-| Diferencia (IC 95%) | −0,005 (−0,025 a 0,014) | +0,020 (−0,009 a 0,051) | +0,012 (−0,019 a 0,043) | +0,22 (McNemar p = 1,8·10⁻⁷) |
+| Modelo | Accuracy | Accuracy balanceada | Macro-F1 |
+| --- | --- | --- | --- |
+| ResNet-34 | 0,725 | 0,726 | 0,638 |
+| ResNet-34 + CBAM | 0,720 | 0,746 | 0,650 |
+| Diferencia (IC 95%) | −0,005 (−0,025 a 0,014) | +0,020 (−0,009 a 0,051) | +0,012 (−0,019 a 0,043) |
 
 CBAM no mejora de forma significativa las métricas globales: por clase, sube el F1 de
-`akiec`, `bkl`, `mel` y `vasc`, y baja el de `bcc`, `df` y `nv`. Su efecto claro está en el
-**melanoma**, la clase de mayor consecuencia clínica: detecta 115 de 160 frente a 80, y los
-melanomas confundidos con nevus bajan de 34 a 16. El precio es la precisión de melanoma, de
-0,33.
+`akiec`, `bkl`, `mel` y `vasc`, y baja el de `bcc`, `df` y `nv`.
+
+**Melanoma.** Es la clase de mayor consecuencia clínica, y donde CBAM cambia más el
+comportamiento del modelo. Con la regla de la clase más probable, detecta 115 de 160
+melanomas frente a 80, y los confundidos con nevus bajan de 34 a 16. Pero predice
+"melanoma" 346 veces frente a 217, con precisión de 0,33 frente a 0,37. Para saber si
+distingue mejor o solo alerta más, se compararon medidas que no dependen del umbral:
+
+| Medida | Con CBAM | Sin CBAM |
+| --- | --- | --- |
+| Recall con la regla de la clase más probable | 0,72 | 0,50 |
+| Recall con 217 alertas en ambos modelos | 0,53 | 0,48 |
+| Recall con 346 alertas en ambos modelos | 0,71 | 0,66 |
+| AUC de melanoma frente al resto | 0,876 | 0,859 |
+
+Con el mismo número de alertas la ventaja se reduce a 4–6 puntos, y la diferencia de AUC
+(+0,017, IC 95%: −0,001 a 0,036) no es significativa. CBAM hace al modelo **más sensible**
+al melanoma, desplazando su punto de operación, pero no hay evidencia de que lo
+**distinga mejor**: una sensibilidad similar se obtendría bajando el umbral de melanoma del
+modelo sin CBAM. El análisis está en `src/eval/analisis_complementario.py`.
 
 ### 4.2 Segmentación y self-attention
 
@@ -109,8 +126,7 @@ menos del 5% de la imagen (0,92).
 
 Fracción del mapa de Grad-CAM que cae dentro de la máscara anotada, en las 1.502 imágenes
 de test: 0,464 sin CBAM y 0,443 con CBAM. CBAM no hace que el clasificador mire más la
-lesión, lo que ocurre solo en el 38,5% de las imágenes; su efecto sobre el melanoma se
-explica por cómo pondera la lesión y la piel que la rodea, no por concentrarse en la lesión.
+lesión, lo que ocurre solo en el 38,5% de las imágenes.
 
 ## 5. Proceso de optimización
 
@@ -201,7 +217,7 @@ de la lesión, y la model card.
 La interfaz advierte sus límites: al usar la cámara, que el modelo solo conoce imágenes de
 dermatoscopio; y si el segmentador no encuentra lesión, que la clasificación no es
 confiable, porque el clasificador siempre elige una de las 7 clases (con una imagen de piel
-sin lesión responde "nevus" con 100% de confianza).
+sin lesión responde "nevus" con 99,9% de confianza).
 
 Para la sustentación, `scripts/run_tunnel.ps1` levanta el aplicativo y abre un túnel rápido
 de Cloudflare, que entrega una dirección pública `https://….trycloudflare.com` sin cuenta
@@ -213,13 +229,15 @@ día. El despliegue se probó abriendo la dirección pública desde un teléfono
 - Una ResNet-34 y una U-Net preentrenadas resuelven bien el problema: macro-F1 de 0,65
   sobre 7 clases muy desbalanceadas y Dice de 0,95.
 - Con comparaciones controladas y pruebas estadísticas, **los mecanismos de atención no
-  mejoraron de forma relevante las métricas globales**. El aporte de CBAM se concentra en
-  el recall de melanoma, un resultado clínicamente relevante que el promedio esconde.
+  mejoraron de forma relevante las métricas globales**. CBAM vuelve al clasificador más
+  sensible al melanoma, pero sobre todo porque lo predice más seguido: mirar solo el recall
+  habría sobrestimado su aporte.
 - La cuantización INT8 es una optimización efectiva: cuatro veces menos espacio y casi
   cinco veces menos tiempo en CPU, con pérdida mínima de desempeño.
 - Varios hallazgos vinieron de revisar resultados que no cuadraban, no de las métricas
-  finales: la comparación sesgada por épocas, el desbordamiento en float16 y los errores de
-  medición de tiempos.
+  finales: la comparación sesgada por épocas, el desbordamiento en float16, los errores de
+  medición de tiempos y el aporte aparente de CBAM al melanoma, que resultó ser en su mayor
+  parte un cambio de umbral.
 
 **Trabajo futuro**, en orden de prioridad:
 
