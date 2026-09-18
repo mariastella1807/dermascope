@@ -1,0 +1,10 @@
+# Configuracion de Streamlit para el aplicativo.
+#
+# headless: evita que Streamlit pida un correo en la terminal la primera vez que se
+# ejecuta y que intente abrir el navegador por su cuenta; la direccion para abrir la app
+# aparece en la terminal (http://localhost:8501).
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

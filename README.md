@@ -5,6 +5,18 @@ Maestría en Inteligencia Artificial y Ciencia de Datos — Universidad Autónom
 
 **Integrantes:** Maria Stella Fuentes Diaz · Sergio Luis Castaño Rodríguez · Alejandro Galvez Cardenas · Joan Sebastian Mena Ortega
 
+> **Propuesta en revisión.** Para revisar el proyecto (dónde está cada cosa, cómo ver los
+> resultados sin ejecutar nada, cómo correr los notebooks en Colab y cómo usar la app en tu
+> computador) empieza por **[`docs/GUIA_REVISION.md`](docs/GUIA_REVISION.md)**.
+>
+> | Para | Ir a |
+> | --- | --- |
+> | Ver los resultados, sin ejecutar nada | [Notebook 01 ejecutado](https://nbviewer.org/github/mariastella1807/dermascope/blob/main/notebooks/ejecutados/01_entrenar_clasificador_colab.ipynb) · [Notebook 02 ejecutado](https://nbviewer.org/github/mariastella1807/dermascope/blob/main/notebooks/ejecutados/02_entrenar_segmentador_colab.ipynb) |
+> | Ejecutarlos en Colab, con los modelos ya entrenados | [Abrir 01 en Colab](https://colab.research.google.com/github/mariastella1807/dermascope/blob/main/notebooks/01_entrenar_clasificador_colab.ipynb) · [Abrir 02 en Colab](https://colab.research.google.com/github/mariastella1807/dermascope/blob/main/notebooks/02_entrenar_segmentador_colab.ipynb) |
+> | Leer los entregables | [Model card](MODEL_CARD.md) · [Documento breve](reports/informe.md) |
+> | Descargar los modelos entrenados | [Release `modelos-v1`](https://github.com/mariastella1807/dermascope/releases/tag/modelos-v1) |
+> | Usar la app | [Guía, sección 6](docs/GUIA_REVISION.md#6-usar-la-app-en-tu-computador) |
+
 ## Problema
 
 Sistema de apoyo al triaje dermatoscópico. Dada una imagen dermatoscópica, el sistema:
