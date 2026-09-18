@@ -1,0 +1,11 @@
+{
+  "device": "cpu",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpu": "13th Gen Intel(R) Core(TM) i3-1305U",
+  "logical_cpus": 6,
+  "power": "corriente",
+  "torch": "2.14.0+cpu",
+  "threads": 5,
+  "gpu": "",
+  "cuda": ""
+}

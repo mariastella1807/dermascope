@@ -1,0 +1,3 @@
+modelo,params_M,Dice,IoU,min_entrenamiento
+U-Net ResNet-34 (sin self-attention),24.52,0.9479,0.9082,59.6
+U-Net ResNet-34 + self-attention,25.61,0.9454,0.9053,61.1
