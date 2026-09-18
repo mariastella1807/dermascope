@@ -94,7 +94,7 @@ esta máquina. El entorno usa **Python 3.11 o 3.12**.
 
 ```powershell
 .\scripts\setup_env.ps1        # crea .venv con py -3.12 e instala requirements
-.\.venv\Scripts\python.exe scripts\smoke_test.py   # 9 comprobaciones, no necesita el dataset
+.\.venv\Scripts\python.exe scripts\smoke_test.py   # 11 comprobaciones, no necesita el dataset
 ```
 
 ### Configuración local por integrante
